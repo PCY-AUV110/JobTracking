@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#D97757" />
+  <title>JobTrack · 求职申请管理</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">JT</div>
+      <div>
+        <h1>JobTrack</h1>
+        <p>求职申请管理系统</p>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item active" data-view="applications">
+        <span>▦</span><span>申请看板</span>
+      </button>
+      <button class="nav-item" data-view="interviews">
+        <span>◷</span><span>面试日程</span>
+      </button>
+      <button class="nav-item" data-view="analytics">
+        <span>◫</span><span>数据统计</span>
+      </button>
+      <button class="nav-item" data-view="settings">
+        <span>⚙</span><span>系统设置</span>
+      </button>
+    </nav>
+
+    <div class="storage-card">
+      <div class="storage-title">本地数据库</div>
+      <div class="storage-status"><span class="dot"></span> IndexedDB 已启用</div>
+      <p>数据保存在当前浏览器中，不会上传到第三方服务器。</p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow" id="eyebrow">APPLICATION TRACKER</p>
+        <h2 id="pageTitle">我的求职申请</h2>
+        <p class="subtitle" id="pageSubtitle">集中记录申请进度，快速查看下一步行动。</p>
+      </div>
+      <div class="top-actions" id="topActions">
+        <button class="btn secondary" id="exportQuickBtn">导出备份</button>
+        <button class="btn primary" id="addApplicationBtn">＋ 添加申请</button>
+      </div>
+    </header>
+
+    <section id="applicationsView" class="view active">
+      <section class="stats-grid" id="statsGrid"></section>
+
+      <section class="panel toolbar">
+        <input class="input search" id="searchInput" placeholder="搜索公司、职位或备注…" />
+        <select class="input" id="statusFilter">
+          <option value="全部">全部状态</option>
+        </select>
+        <select class="input" id="sortFilter">
+          <option value="newest">按申请时间</option>
+          <option value="updated">按最近更新</option>
+          <option value="company">按公司名称</option>
+        </select>
+      </section>
+
+      <div class="segmented-tabs">
+        <button class="segment active" data-tab="active">进行中</button>
+        <button class="segment" data-tab="closed">已终止</button>
+        <button class="segment" data-tab="all">全部记录</button>
+      </div>
+
+      <section class="cards-list" id="applicationList"></section>
+    </section>
+
+    <section id="interviewsView" class="view">
+      <div class="section-heading">
+        <div>
+          <h3>面试日程</h3>
+          <p>管理即将进行与已经完成的面试。</p>
+        </div>
+        <button class="btn primary" id="addInterviewBtn">＋ 添加面试</button>
+      </div>
+      <section class="calendar-layout">
+        <div class="panel calendar-card">
+          <div class="calendar-head">
+            <button class="icon-btn" id="prevMonth">‹</button>
+            <h3 id="calendarTitle"></h3>
+            <button class="icon-btn" id="nextMonth">›</button>
+          </div>
+          <div class="calendar-grid calendar-weekdays">
+            <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+          </div>
+          <div class="calendar-grid" id="calendarDays"></div>
+        </div>
+        <div class="panel upcoming-card">
+          <h3>近期安排</h3>
+          <div id="upcomingInterviews"></div>
+        </div>
+      </section>
+    </section>
+
+    <section id="analyticsView" class="view">
+      <div class="section-heading">
+        <div>
+          <h3>申请数据统计</h3>
+          <p>了解申请进展、转化情况和近期活动。</p>
+        </div>
+      </div>
+      <section class="analytics-grid">
+        <div class="panel chart-card wide">
+          <div class="chart-title">
+            <h3>状态分布</h3>
+            <span>按当前申请状态统计</span>
+          </div>
+          <div id="statusChart" class="bar-chart"></div>
+        </div>
+        <div class="panel chart-card">
+          <div class="chart-title">
+            <h3>申请渠道</h3>
+            <span>职位来源占比</span>
+          </div>
+          <div id="sourceChart" class="donut-wrap"></div>
+        </div>
+        <div class="panel chart-card">
+          <div class="chart-title">
+            <h3>关键指标</h3>
+            <span>自动计算</span>
+          </div>
+          <div id="metricCards" class="metric-list"></div>
+        </div>
+        <div class="panel chart-card wide">
+          <div class="chart-title">
+            <h3>最近 8 周申请趋势</h3>
+            <span>每周新增申请数量</span>
+          </div>
+          <div id="trendChart" class="trend-chart"></div>
+        </div>
+      </section>
+    </section>
+
+    <section id="settingsView" class="view">
+      <div class="section-heading">
+        <div>
+          <h3>系统设置</h3>
+          <p>管理数据、偏好和本地存储。</p>
+        </div>
+      </div>
+
+      <section class="settings-grid">
+        <div class="panel setting-card">
+          <h3>数据管理</h3>
+          <p>导出完整 JSON 备份，或从备份文件恢复。</p>
+          <div class="setting-actions">
+            <button class="btn primary" id="exportDataBtn">导出 JSON</button>
+            <label class="btn secondary file-label">
+              导入 JSON
+              <input type="file" id="importDataInput" accept=".json" hidden />
+            </label>
+          </div>
+        </div>
+
+        <div class="panel setting-card">
+          <h3>界面偏好</h3>
+          <div class="setting-row">
+            <div>
+              <strong>紧凑模式</strong>
+              <p>减少卡片间距，在一屏中显示更多申请。</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="compactModeToggle" />
+              <span></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div>
+              <strong>默认打开进行中</strong>
+              <p>每次进入页面时默认显示进行中的申请。</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="defaultActiveToggle" checked />
+              <span></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="panel setting-card danger-card">
+          <h3>重置数据</h3>
+          <p>清除所有本地职位、面试和设置。此操作不可撤销。</p>
+          <button class="btn danger" id="resetDataBtn">清空本地数据</button>
+        </div>
+
+        <div class="panel setting-card">
+          <h3>GitHub Pages 部署</h3>
+          <ol class="deploy-list">
+            <li>将整个项目文件夹上传到 GitHub 仓库。</li>
+            <li>进入 Settings → Pages。</li>
+            <li>选择 Deploy from a branch。</li>
+            <li>选择 main 分支与 /root 目录。</li>
+          </ol>
+          <p class="note">部署后仍使用访问者浏览器的 IndexedDB，本地数据不会提交到 GitHub。</p>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="applicationModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <p class="eyebrow">APPLICATION</p>
+        <h3 id="applicationModalTitle">添加职位申请</h3>
+      </div>
+      <button class="close-btn" data-close="applicationModal">×</button>
+    </div>
+    <form id="applicationForm">
+      <input type="hidden" id="applicationId" />
+      <div class="form-grid">
+        <label class="field">
+          <span>公司名称 *</span>
+          <input id="companyInput" required />
+        </label>
+        <label class="field">
+          <span>职位名称 *</span>
+          <input id="roleInput" required />
+        </label>
+        <label class="field">
+          <span>当前状态</span>
+          <select id="statusInput"></select>
+        </label>
+        <label class="field">
+          <span>申请日期</span>
+          <input type="date" id="appliedDateInput" />
+        </label>
+        <label class="field">
+          <span>工作地点</span>
+          <input id="locationInput" />
+        </label>
+        <label class="field">
+          <span>申请渠道</span>
+          <input id="sourceInput" placeholder="LinkedIn / 官网 / Referral" />
+        </label>
+        <label class="field full">
+          <span>职位链接</span>
+          <input type="url" id="jobUrlInput" placeholder="https://..." />
+        </label>
+        <label class="field full">
+          <span>备注</span>
+          <textarea id="notesInput"></textarea>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" data-close="applicationModal">取消</button>
+        <button type="submit" class="btn primary">保存申请</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="interviewModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <p class="eyebrow">INTERVIEW</p>
+        <h3 id="interviewModalTitle">添加面试</h3>
+      </div>
+      <button class="close-btn" data-close="interviewModal">×</button>
+    </div>
+    <form id="interviewForm">
+      <input type="hidden" id="interviewId" />
+      <div class="form-grid">
+        <label class="field full">
+          <span>关联申请 *</span>
+          <select id="interviewApplicationInput" required></select>
+        </label>
+        <label class="field">
+          <span>面试日期 *</span>
+          <input type="date" id="interviewDateInput" required />
+        </label>
+        <label class="field">
+          <span>面试时间</span>
+          <input type="time" id="interviewTimeInput" />
+        </label>
+        <label class="field">
+          <span>面试类型</span>
+          <select id="interviewTypeInput">
+            <option>HR 面试</option>
+            <option>Hiring Manager</option>
+            <option>Technical Interview</option>
+            <option>Case Interview</option>
+            <option>Final Interview</option>
+            <option>其他</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>形式</span>
+          <select id="interviewFormatInput">
+            <option>线上</option>
+            <option>线下</option>
+            <option>电话</option>
+          </select>
+        </label>
+        <label class="field full">
+          <span>会议链接 / 地址</span>
+          <input id="interviewLinkInput" />
+        </label>
+        <label class="field full">
+          <span>准备事项</span>
+          <textarea id="interviewNotesInput"></textarea>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" data-close="interviewModal">取消</button>
+        <button type="submit" class="btn primary">保存面试</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="./app.js"></script>
+</body>
+</html>
