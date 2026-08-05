@@ -879,3 +879,421 @@ body.compact .cards-list { gap: 8px; }
   .calendar-day { min-height: 66px; padding: 5px; }
   .interview-dot { display: none; }
 }
+
+/* ============================================================
+   登录 / 注册界面
+============================================================ */
+.auth-screen,
+.config-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(217, 119, 87, .15), transparent 30%),
+    var(--claude-cream);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--claude-paper);
+  border: 1px solid var(--claude-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 36px 32px;
+}
+
+.auth-head {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.auth-head .brand-mark {
+  margin: 0 auto 14px;
+  width: 52px;
+  height: 52px;
+  font-size: 18px;
+}
+
+.auth-head h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.auth-head p {
+  margin: 6px 0 0;
+  color: var(--claude-muted);
+  font-size: 13px;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  margin-bottom: 20px;
+  background: var(--claude-soft);
+  border-radius: 12px;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 9px 0;
+  border: none;
+  background: transparent;
+  color: var(--claude-muted);
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all .2s;
+}
+
+.auth-tab.active {
+  background: #fff;
+  color: var(--claude-ink);
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auth-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-form .field span {
+  font-size: 13px;
+  color: var(--claude-muted);
+  font-weight: 600;
+}
+
+.auth-form .field input {
+  padding: 11px 13px;
+  border: 1px solid var(--claude-line);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 14px;
+}
+
+.auth-form .field input:focus {
+  outline: none;
+  border-color: var(--claude-orange);
+  box-shadow: 0 0 0 3px rgba(217,119,87,.12);
+}
+
+.auth-error {
+  min-height: 18px;
+  font-size: 12.5px;
+  color: var(--red);
+}
+
+.auth-submit {
+  margin-top: 6px;
+  width: 100%;
+  padding: 12px 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.auth-submit:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+
+.auth-foot {
+  margin: 18px 0 0;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--claude-muted);
+  line-height: 1.55;
+}
+
+.config-screen .deploy-list {
+  margin: 14px 0 0;
+  padding-left: 20px;
+  color: var(--claude-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.config-screen a {
+  color: var(--claude-orange);
+  text-decoration: none;
+}
+
+.config-screen code {
+  background: var(--claude-soft);
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+
+/* 侧边栏退出登录按钮 */
+.logout-btn {
+  margin-top: 12px;
+  width: 100%;
+  padding: 8px 0;
+  font-size: 12.5px;
+  background: rgba(255,255,255,.08);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.14);
+}
+
+.logout-btn:hover {
+  background: rgba(180,78,78,.25);
+  border-color: rgba(180,78,78,.4);
+}
+
+#authUserEmail {
+  word-break: break-all;
+  font-size: 11.5px;
+  margin: 8px 0 0;
+}
+
+@media (max-width: 720px) {
+  .auth-card { padding: 28px 22px; }
+}
+
+/* ============================================================
+   登录页新元素：密码可见切换、强度条、记住邮箱、OAuth、spinner
+============================================================ */
+
+/* 密码输入框容器 */
+.password-wrap {
+  position: relative;
+}
+
+.password-wrap input {
+  width: 100%;
+  padding-right: 38px !important;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--claude-muted);
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all .2s;
+}
+
+.password-toggle:hover {
+  background: var(--claude-soft);
+  color: var(--claude-ink);
+}
+
+.password-toggle.active {
+  color: var(--claude-orange);
+}
+
+/* 密码强度条 */
+.password-strength {
+  display: none;
+  margin-top: 8px;
+  gap: 8px;
+  align-items: center;
+}
+
+.password-strength.visible {
+  display: flex;
+}
+
+.strength-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--claude-line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.strength-fill {
+  height: 100%;
+  width: 0;
+  background: var(--claude-muted);
+  border-radius: 2px;
+  transition: width .25s ease, background .25s ease;
+}
+
+.strength-text {
+  font-size: 11.5px;
+  min-width: 32px;
+  text-align: right;
+  color: var(--claude-muted);
+}
+
+/* 记住邮箱 + 忘记密码行 */
+.auth-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: -4px;
+  font-size: 13px;
+}
+
+.remember {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--claude-muted);
+}
+
+.remember input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--claude-orange);
+  cursor: pointer;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--claude-orange);
+  cursor: pointer;
+  padding: 0;
+  font-size: 13px;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+/* 成功提示（绿色） */
+.auth-success {
+  min-height: 18px;
+  font-size: 12.5px;
+  color: var(--green);
+  line-height: 1.5;
+}
+
+/* 提交按钮：加载动画 */
+.auth-submit {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: opacity .2s;
+}
+
+.auth-submit.loading {
+  pointer-events: none;
+}
+
+.auth-submit .btn-spinner {
+  display: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+.auth-submit.loading .btn-spinner {
+  display: inline-block;
+}
+
+.auth-submit.loading .btn-text {
+  opacity: .85;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 分隔线与 OAuth 按钮 */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 22px 0 14px;
+  color: var(--claude-muted);
+  font-size: 12px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--claude-line);
+}
+
+.oauth-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.oauth-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 0;
+  border: 1px solid var(--claude-line);
+  background: #fff;
+  color: var(--claude-ink);
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .2s;
+}
+
+.oauth-btn:hover {
+  border-color: var(--claude-orange);
+  background: var(--claude-paper);
+  transform: translateY(-1px);
+}
+
+.oauth-btn:active {
+  transform: translateY(0);
+}
+
+.oauth-btn svg {
+  flex-shrink: 0;
+}
+
+/* 小型模态弹窗（用于忘记密码） */
+.modal-sm {
+  max-width: 420px;
+  width: calc(100% - 32px);
+}
+
+.modal-sm .field.full {
+  margin-bottom: 14px;
+}
+
+.modal-sm .modal-actions {
+  margin-top: 8px;
+}
+
+/* 响应式：小屏 OAuth 单列 */
+@media (max-width: 480px) {
+  .oauth-buttons {
+    grid-template-columns: 1fr;
+  }
+  .auth-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}

@@ -1,9 +1,13 @@
-const DB_NAME = "JobTrackDB";
-const DB_VERSION = 1;
-const STORE_APPLICATIONS = "applications";
-const STORE_INTERVIEWS = "interviews";
-const STORE_SETTINGS = "settings";
+// ============================================================
+// JobTrack 应用主逻辑（Supabase 云端版本）
+// ============================================================
 
+// ---- Supabase 表名常量 ----
+const TABLE_APPLICATIONS = "applications";
+const TABLE_INTERVIEWS = "interviews";
+const TABLE_SETTINGS = "settings";
+
+// ---- 业务常量 ----
 const STATUSES = [
   "准备申请",
   "已申请",
@@ -19,12 +23,12 @@ const PAGE_META = {
   applications: ["APPLICATION TRACKER", "我的求职申请", "集中记录申请进度，快速查看下一步行动。"],
   interviews: ["INTERVIEW CALENDAR", "面试日程", "管理即将进行与已经完成的面试。"],
   analytics: ["CAREER ANALYTICS", "数据统计", "通过数据了解申请进度和转化情况。"],
-  settings: ["LOCAL WORKSPACE", "系统设置", "管理本地数据、备份和界面偏好。"]
+  settings: ["CLOUD WORKSPACE", "系统设置", "管理云端账户、备份和界面偏好。"]
 };
 
+// ---- 新用户首次登录时的演示数据（id 与时间戳在写入时生成）----
 const seedApplications = [
   {
-    id: crypto.randomUUID(),
     company: "TMX Group",
     role: "Corporate Functions Coordinator Intern",
     status: "在线测评",
@@ -32,12 +36,9 @@ const seedApplications = [
     location: "Toronto, ON",
     source: "Company Website",
     jobUrl: "",
-    notes: "完成在线 assessment 后跟进。",
-    createdAt: Date.now() - 1000000,
-    updatedAt: Date.now() - 900000
+    notes: "完成在线 assessment 后跟进。"
   },
   {
-    id: crypto.randomUUID(),
     company: "University of Toronto",
     role: "Lab Assistant Position",
     status: "准备申请",
@@ -45,12 +46,9 @@ const seedApplications = [
     location: "Toronto, ON",
     source: "Email Outreach",
     jobUrl: "",
-    notes: "联系 EESC30 课程老师 Lauren Hemara。",
-    createdAt: Date.now() - 800000,
-    updatedAt: Date.now() - 700000
+    notes: "联系 EESC30 课程老师 Lauren Hemara。"
   },
   {
-    id: crypto.randomUUID(),
     company: "Goodrec",
     role: "Marketing / Community Intern",
     status: "审核中",
@@ -58,12 +56,9 @@ const seedApplications = [
     location: "Toronto, ON",
     source: "LinkedIn",
     jobUrl: "",
-    notes: "突出社交媒体、活动摄影及球队社区运营经验。",
-    createdAt: Date.now() - 600000,
-    updatedAt: Date.now() - 500000
+    notes: "突出社交媒体、活动摄影及球队社区运营经验。"
   },
   {
-    id: crypto.randomUUID(),
     company: "Sample Company",
     role: "Business Operations Intern",
     status: "已终止",
@@ -71,13 +66,11 @@ const seedApplications = [
     location: "Remote",
     source: "Indeed",
     jobUrl: "",
-    notes: "岗位已关闭。",
-    createdAt: Date.now() - 400000,
-    updatedAt: Date.now() - 300000
+    notes: "岗位已关闭。"
   }
 ];
 
-let db;
+// ---- 运行时状态 ----
 let applications = [];
 let interviews = [];
 let settings = {
@@ -86,87 +79,434 @@ let settings = {
 };
 let currentTab = "active";
 let calendarCursor = new Date();
+let currentUser = null;
+let authMode = "login"; // "login" | "signup"
 
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+// ============================================================
+// Supabase 数据访问层
+// 数据库列名为 snake_case，前端对象为 camelCase，下面做映射
+// ============================================================
 
-    request.onupgradeneeded = event => {
-      const database = event.target.result;
+function rowToApplication(row) {
+  return {
+    id: row.id,
+    company: row.company,
+    role: row.role,
+    status: row.status,
+    appliedDate: row.applied_date,
+    location: row.location,
+    source: row.source,
+    jobUrl: row.job_url,
+    notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
 
-      if (!database.objectStoreNames.contains(STORE_APPLICATIONS)) {
-        const store = database.createObjectStore(STORE_APPLICATIONS, { keyPath: "id" });
-        store.createIndex("status", "status", { unique: false });
-        store.createIndex("appliedDate", "appliedDate", { unique: false });
+function applicationToRow(app) {
+  return {
+    id: app.id,
+    company: app.company,
+    role: app.role,
+    status: app.status,
+    applied_date: app.appliedDate,
+    location: app.location,
+    source: app.source,
+    job_url: app.jobUrl,
+    notes: app.notes,
+    created_at: app.createdAt,
+    updated_at: app.updatedAt
+  };
+}
+
+function rowToInterview(row) {
+  return {
+    id: row.id,
+    applicationId: row.application_id,
+    date: row.date,
+    time: row.time,
+    type: row.type,
+    format: row.format,
+    link: row.link,
+    notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function interviewToRow(interview) {
+  return {
+    id: interview.id,
+    application_id: interview.applicationId,
+    date: interview.date,
+    time: interview.time,
+    type: interview.type,
+    format: interview.format,
+    link: interview.link,
+    notes: interview.notes,
+    created_at: interview.createdAt,
+    updated_at: interview.updatedAt
+  };
+}
+
+// 通用：通过 id 字段筛选删除（受 RLS 限制，只会删除当前用户的数据）
+async function dbGetAll(table, mapper) {
+  const { data, error } = await supabase.from(table).select("*");
+  if (error) throw error;
+  return (data || []).map(mapper);
+}
+
+async function dbUpsert(table, row) {
+  const { error } = await supabase.from(table).upsert(row);
+  if (error) throw error;
+}
+
+async function dbDeleteById(table, id) {
+  const { error } = await supabase.from(table).delete().eq("id", id);
+  if (error) throw error;
+}
+
+// 清空当前用户在某张表的所有数据
+// 由于 RLS 限制只会影响当前用户的行；用 neq 配合占位 UUID 命中所有现有行
+const NEVER_MATCH_UUID = "00000000-0000-0000-0000-000000000000";
+
+async function dbClearApplications() {
+  const { error } = await supabase
+    .from(TABLE_APPLICATIONS)
+    .delete()
+    .neq("id", NEVER_MATCH_UUID);
+  if (error) throw error;
+}
+
+async function dbClearInterviews() {
+  const { error } = await supabase
+    .from(TABLE_INTERVIEWS)
+    .delete()
+    .neq("id", NEVER_MATCH_UUID);
+  if (error) throw error;
+}
+
+async function dbClearSettings() {
+  const { error } = await supabase
+    .from(TABLE_SETTINGS)
+    .delete()
+    .neq("key", "__never_match__");
+  if (error) throw error;
+}
+
+async function dbGetSettings() {
+  const { data, error } = await supabase.from(TABLE_SETTINGS).select("*");
+  if (error) throw error;
+  const result = {};
+  (data || []).forEach(item => {
+    result[item.key] = item.value;
+  });
+  return result;
+}
+
+async function dbSaveSetting(key, value) {
+  const { error } = await supabase
+    .from(TABLE_SETTINGS)
+    .upsert({ key, value });
+  if (error) throw error;
+}
+
+// ============================================================
+// 认证相关
+// ============================================================
+
+function showConfigScreen() {
+  document.getElementById("authScreen").style.display = "none";
+  document.getElementById("configScreen").style.display = "flex";
+  document.getElementById("appShell").style.display = "none";
+}
+
+function showAuthScreen() {
+  document.getElementById("authScreen").style.display = "flex";
+  document.getElementById("configScreen").style.display = "none";
+  document.getElementById("appShell").style.display = "none";
+}
+
+function showAppShell() {
+  document.getElementById("authScreen").style.display = "none";
+  document.getElementById("configScreen").style.display = "none";
+  document.getElementById("appShell").style.display = "grid";
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  document.querySelectorAll(".auth-tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.authTab === mode);
+  });
+  // 切换按钮文案与密码占位符
+  const submitBtn = document.getElementById("authSubmitBtn");
+  const btnText = submitBtn.querySelector(".btn-text");
+  btnText.textContent = mode === "login" ? "登录" : "注册";
+  document.getElementById("authPasswordInput").placeholder =
+    mode === "signup" ? "建议 8 位以上，含字母与数字" : "请输入密码";
+  document.getElementById("authError").textContent = "";
+  document.getElementById("authSuccess").textContent = "";
+  // 切换密码强度条显示
+  document.getElementById("passwordStrength").classList.toggle("visible", mode === "signup");
+  updatePasswordStrength(document.getElementById("authPasswordInput").value);
+}
+
+function updateAuthUI() {
+  const emailEl = document.getElementById("authUserEmail");
+  if (currentUser?.email) {
+    emailEl.textContent = currentUser.email;
+  } else {
+    emailEl.textContent = "未登录";
+  }
+}
+
+// 密码强度评估：返回 0-4 的等级
+function evalPasswordStrength(password) {
+  if (!password) return 0;
+  let score = 0;
+  if (password.length >= 6) score++;
+  if (password.length >= 10) score++;
+  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
+  if (/\d/.test(password) && /[^A-Za-z0-9]/.test(password)) score++;
+  return Math.min(score, 4);
+}
+
+function updatePasswordStrength(password) {
+  const container = document.getElementById("passwordStrength");
+  const fill = container.querySelector(".strength-fill");
+  const text = container.querySelector(".strength-text");
+  const score = evalPasswordStrength(password);
+  const levels = ["", "弱", "一般", "良好", "强"];
+  const colors = ["", "#B44E4E", "#B7791F", "#58789A", "#4F806B"];
+  fill.style.width = `${(score / 4) * 100}%`;
+  fill.style.background = colors[score];
+  text.textContent = levels[score] || "";
+  text.style.color = colors[score] || "var(--claude-muted)";
+}
+
+// 切换密码可见性
+function togglePasswordVisibility(event) {
+  // 阻止冒泡与默认行为，避免触发外层 <label> 的 input 聚焦
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const input = document.getElementById("authPasswordInput");
+  const isPassword = input.type === "password";
+  input.type = isPassword ? "text" : "password";
+  document.getElementById("passwordToggleBtn").classList.toggle("active", isPassword);
+  // 重新聚焦到输入框末尾
+  input.focus();
+  const len = input.value.length;
+  input.setSelectionRange(len, len);
+}
+
+// 记住邮箱功能（仅本地存储邮箱，不存储密码）
+const REMEMBER_EMAIL_KEY = "jobtrack:remembered_email";
+
+function loadRememberedEmail() {
+  const email = localStorage.getItem(REMEMBER_EMAIL_KEY) || "";
+  if (email) {
+    document.getElementById("authEmailInput").value = email;
+    document.getElementById("rememberEmail").checked = true;
+  }
+}
+
+function saveRememberedEmail(email, remember) {
+  if (remember) {
+    localStorage.setItem(REMEMBER_EMAIL_KEY, email);
+  } else {
+    localStorage.removeItem(REMEMBER_EMAIL_KEY);
+  }
+}
+
+// 第三方 OAuth 登录（Google / GitHub）
+async function handleOAuthSignIn(provider) {
+  const errorEl = document.getElementById("authError");
+  const successEl = document.getElementById("authSuccess");
+  errorEl.textContent = "";
+  successEl.textContent = `正在跳转到 ${provider === "google" ? "Google" : "GitHub"} 完成授权…`;
+
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin + window.location.pathname
       }
+    });
+    if (error) throw error;
+    // 成功时浏览器会跳转，无需在前端处理
+  } catch (err) {
+    successEl.textContent = "";
+    errorEl.textContent = friendlyAuthError(err);
+  }
+}
 
-      if (!database.objectStoreNames.contains(STORE_INTERVIEWS)) {
-        const store = database.createObjectStore(STORE_INTERVIEWS, { keyPath: "id" });
-        store.createIndex("date", "date", { unique: false });
-        store.createIndex("applicationId", "applicationId", { unique: false });
+// 忘记密码：发送重置邮件
+async function handleForgotPassword(event) {
+  event.preventDefault();
+  const email = document.getElementById("forgotEmailInput").value.trim();
+  const successEl = document.getElementById("forgotSuccess");
+  const errorEl = document.getElementById("forgotError");
+  successEl.textContent = "";
+  errorEl.textContent = "";
+
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname
+    });
+    if (error) throw error;
+    successEl.textContent = "重置邮件已发送，请查收邮箱并按提示重置密码。";
+  } catch (err) {
+    errorEl.textContent = friendlyAuthError(err);
+  }
+}
+
+// 设置按钮加载状态（spinner）
+function setSubmitLoading(loading) {
+  const submitBtn = document.getElementById("authSubmitBtn");
+  submitBtn.disabled = loading;
+  submitBtn.classList.toggle("loading", loading);
+}
+
+async function handleAuthSubmit(event) {
+  event.preventDefault();
+  const email = document.getElementById("authEmailInput").value.trim();
+  const password = document.getElementById("authPasswordInput").value;
+  const errorEl = document.getElementById("authError");
+  const successEl = document.getElementById("authSuccess");
+  const remember = document.getElementById("rememberEmail").checked;
+
+  // 前端基础校验
+  errorEl.textContent = "";
+  successEl.textContent = "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errorEl.textContent = "邮箱格式不正确。";
+    return;
+  }
+  if (password.length < 6) {
+    errorEl.textContent = "密码至少需要 6 位。";
+    return;
+  }
+
+  setSubmitLoading(true);
+
+  try {
+    if (authMode === "signup") {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+
+      // 部分项目会要求邮箱验证后才创建会话
+      if (data.user && !data.session) {
+        successEl.textContent = "注册成功，请前往邮箱点击确认链接后再登录。";
+        saveRememberedEmail(email, true);
+        document.getElementById("rememberEmail").checked = true;
+        setAuthMode("login");
       }
-
-      if (!database.objectStoreNames.contains(STORE_SETTINGS)) {
-        database.createObjectStore(STORE_SETTINGS, { keyPath: "key" });
-      }
-    };
-
-    request.onsuccess = event => resolve(event.target.result);
-    request.onerror = () => reject(request.error);
-  });
+      // 如果直接拿到 session，onAuthStateChange 会接管 UI 切换
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      saveRememberedEmail(email, remember);
+      // onAuthStateChange 会接管 UI 切换
+    }
+  } catch (err) {
+    errorEl.textContent = friendlyAuthError(err);
+  } finally {
+    setSubmitLoading(false);
+  }
 }
 
-function tx(storeName, mode = "readonly") {
-  return db.transaction(storeName, mode).objectStore(storeName);
+// 把 Supabase 报错翻译成更友好的中文提示
+function friendlyAuthError(err) {
+  const message = err?.message || "操作失败，请稍后重试。";
+  if (/Invalid login credentials/i.test(message)) return "邮箱或密码错误。";
+  if (/User already registered/i.test(message)) return "该邮箱已注册，请直接登录。";
+  if (/Password should be at least/i.test(message)) return "密码至少需要 6 位。";
+  if (/Email not confirmed/i.test(message)) return "邮箱尚未验证，请先查收验证邮件。";
+  if (/email rate limit exceeded/i.test(message)) return "邮件发送过于频繁，请稍后再试或更换邮箱。";
+  if (/over_email_send_rate_limit/i.test(message)) return "邮件发送过于频繁，请稍后再试。";
+  if (/invalid email/i.test(message)) return "邮箱格式不正确。";
+  if (/Email rate limit exceeded/i.test(message)) return "邮箱发送已达上限，请稍后再试。";
+  if (/provider is not enabled/i.test(message)) return "该第三方登录未启用，请联系管理员或在 Supabase 中开启。";
+  if (/Invalid API key/i.test(message)) return "Supabase 配置错误，请检查 anon key。";
+  return message;
 }
 
-function getAll(storeName) {
-  return new Promise((resolve, reject) => {
-    const request = tx(storeName).getAll();
-    request.onsuccess = () => resolve(request.result || []);
-    request.onerror = () => reject(request.error);
-  });
+async function handleLogout() {
+  if (!confirm("确定退出登录吗？退出后需要重新登录才能查看数据。")) return;
+  try {
+    await supabase.auth.signOut();
+  } catch (err) {
+    showToast("退出失败：" + (err?.message || "未知错误"));
+  }
 }
 
-function putRecord(storeName, record) {
-  return new Promise((resolve, reject) => {
-    const request = tx(storeName, "readwrite").put(record);
-    request.onsuccess = () => resolve(record);
-    request.onerror = () => reject(request.error);
-  });
+// 认证状态变化时的统一入口
+async function onAuthStateChanged(event, session) {
+  // SIGNED_OUT 可能是用户主动退出，也可能是 token 过期 / 被服务端吊销
+  if (event === "SIGNED_OUT" && currentUser) {
+    showToast("登录状态已失效，请重新登录。");
+  }
+
+  if (session?.user) {
+    currentUser = session.user;
+    updateAuthUI();
+    showAppShell();
+
+    try {
+      await seedIfNeeded();
+      await loadState();
+      renderStatusOptions();
+      renderAll();
+    } catch (err) {
+      console.error(err);
+      showToast("加载数据失败：" + (err?.message || "未知错误"));
+    }
+  } else {
+    // 已登出
+    currentUser = null;
+    applications = [];
+    interviews = [];
+    settings = { compactMode: false, defaultActive: true };
+    updateAuthUI();
+    showAuthScreen();
+  }
 }
 
-function deleteRecord(storeName, id) {
-  return new Promise((resolve, reject) => {
-    const request = tx(storeName, "readwrite").delete(id);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
-}
-
-function clearStore(storeName) {
-  return new Promise((resolve, reject) => {
-    const request = tx(storeName, "readwrite").clear();
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
-}
+// ============================================================
+// 状态加载 / 种子数据
+// ============================================================
 
 async function seedIfNeeded() {
-  const existing = await getAll(STORE_APPLICATIONS);
+  const existing = await dbGetAll(TABLE_APPLICATIONS, rowToApplication);
   if (!existing.length) {
-    for (const app of seedApplications) await putRecord(STORE_APPLICATIONS, app);
+    for (const seed of seedApplications) {
+      const now = Date.now();
+      const record = {
+        ...seed,
+        id: crypto.randomUUID(),
+        createdAt: now,
+        updatedAt: now
+      };
+      await dbUpsert(TABLE_APPLICATIONS, applicationToRow(record));
+      applications.push(record);
+    }
+  } else {
+    applications = existing;
   }
 }
 
 async function loadState() {
-  applications = await getAll(STORE_APPLICATIONS);
-  interviews = await getAll(STORE_INTERVIEWS);
+  applications = await dbGetAll(TABLE_APPLICATIONS, rowToApplication);
+  interviews = await dbGetAll(TABLE_INTERVIEWS, rowToInterview);
 
-  const storedSettings = await getAll(STORE_SETTINGS);
-  storedSettings.forEach(item => {
-    settings[item.key] = item.value;
-  });
+  const storedSettings = await dbGetSettings();
+  settings = {
+    compactMode: false,
+    defaultActive: true,
+    ...storedSettings
+  };
 
   document.body.classList.toggle("compact", !!settings.compactMode);
   document.getElementById("compactModeToggle").checked = !!settings.compactMode;
@@ -182,8 +522,12 @@ async function loadState() {
 
 async function saveSetting(key, value) {
   settings[key] = value;
-  await putRecord(STORE_SETTINGS, { key, value });
+  await dbSaveSetting(key, value);
 }
+
+// ============================================================
+// 渲染相关（与原版基本一致）
+// ============================================================
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, char => ({
@@ -541,8 +885,9 @@ function editInterview(id) {
 async function exportData() {
   const payload = {
     app: "JobTrack",
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
+    user: currentUser?.email || null,
     applications,
     interviews,
     settings
@@ -566,16 +911,44 @@ async function importData(file) {
     throw new Error("备份文件格式不正确");
   }
 
-  await clearStore(STORE_APPLICATIONS);
-  await clearStore(STORE_INTERVIEWS);
-  await clearStore(STORE_SETTINGS);
+  await dbClearApplications();
+  await dbClearInterviews();
+  await dbClearSettings();
 
-  for (const item of payload.applications) await putRecord(STORE_APPLICATIONS, item);
-  for (const item of payload.interviews) await putRecord(STORE_INTERVIEWS, item);
+  for (const item of payload.applications) {
+    await dbUpsert(TABLE_APPLICATIONS, applicationToRow({
+      id: item.id || crypto.randomUUID(),
+      company: item.company,
+      role: item.role,
+      status: item.status,
+      appliedDate: item.appliedDate,
+      location: item.location,
+      source: item.source,
+      jobUrl: item.jobUrl,
+      notes: item.notes,
+      createdAt: item.createdAt || Date.now(),
+      updatedAt: item.updatedAt || Date.now()
+    }));
+  }
+
+  for (const item of payload.interviews) {
+    await dbUpsert(TABLE_INTERVIEWS, interviewToRow({
+      id: item.id || crypto.randomUUID(),
+      applicationId: item.applicationId,
+      date: item.date,
+      time: item.time,
+      type: item.type,
+      format: item.format,
+      link: item.link,
+      notes: item.notes,
+      createdAt: item.createdAt || Date.now(),
+      updatedAt: item.updatedAt || Date.now()
+    }));
+  }
 
   const importedSettings = payload.settings || {};
   for (const [key, value] of Object.entries(importedSettings)) {
-    await putRecord(STORE_SETTINGS, { key, value });
+    await dbSaveSetting(key, value);
   }
 
   await loadState();
@@ -607,7 +980,46 @@ function switchView(view) {
   }
 }
 
+// 用一个标志位防止 bindEvents 重复绑定
+let eventsBound = false;
+
 function bindEvents() {
+  if (eventsBound) return;
+  eventsBound = true;
+
+  // ---- 认证相关 ----
+  document.querySelectorAll(".auth-tab").forEach(tab => {
+    tab.addEventListener("click", () => setAuthMode(tab.dataset.authTab));
+  });
+
+  document.getElementById("authForm").addEventListener("submit", handleAuthSubmit);
+
+  // 密码可见性切换
+  document.getElementById("passwordToggleBtn").addEventListener("click", togglePasswordVisibility);
+
+  // 密码强度实时更新
+  document.getElementById("authPasswordInput").addEventListener("input", event => {
+    updatePasswordStrength(event.target.value);
+  });
+
+  // OAuth 登录按钮
+  document.getElementById("googleSignInBtn").addEventListener("click", () => handleOAuthSignIn("google"));
+  document.getElementById("githubSignInBtn").addEventListener("click", () => handleOAuthSignIn("github"));
+
+  // 忘记密码
+  document.getElementById("forgotPasswordBtn").addEventListener("click", () => {
+    document.getElementById("forgotSuccess").textContent = "";
+    document.getElementById("forgotError").textContent = "";
+    // 自动填充当前邮箱
+    const currentEmail = document.getElementById("authEmailInput").value.trim();
+    if (currentEmail) document.getElementById("forgotEmailInput").value = currentEmail;
+    openModal("forgotPasswordModal");
+  });
+  document.getElementById("forgotPasswordForm").addEventListener("submit", handleForgotPassword);
+
+  document.getElementById("logoutBtn").addEventListener("click", handleLogout);
+
+  // ---- 主应用导航 ----
   document.querySelectorAll(".nav-item").forEach(button => {
     button.addEventListener("click", () => switchView(button.dataset.view));
   });
@@ -655,11 +1067,15 @@ function bindEvents() {
       updatedAt: Date.now()
     };
 
-    await putRecord(STORE_APPLICATIONS, record);
-    await loadState();
-    renderAll();
-    closeModal("applicationModal");
-    showToast(old ? "申请已更新" : "申请已添加");
+    try {
+      await dbUpsert(TABLE_APPLICATIONS, applicationToRow(record));
+      await loadState();
+      renderAll();
+      closeModal("applicationModal");
+      showToast(old ? "申请已更新" : "申请已添加");
+    } catch (err) {
+      showToast("保存失败：" + (err?.message || "未知错误"));
+    }
   });
 
   document.getElementById("interviewForm").addEventListener("submit", async event => {
@@ -680,23 +1096,32 @@ function bindEvents() {
       updatedAt: Date.now()
     };
 
-    await putRecord(STORE_INTERVIEWS, record);
-    await loadState();
-    renderAll();
-    closeModal("interviewModal");
-    showToast(old ? "面试已更新" : "面试已添加");
+    try {
+      await dbUpsert(TABLE_INTERVIEWS, interviewToRow(record));
+      await loadState();
+      renderAll();
+      closeModal("interviewModal");
+      showToast(old ? "面试已更新" : "面试已添加");
+    } catch (err) {
+      showToast("保存失败：" + (err?.message || "未知错误"));
+    }
   });
 
   document.getElementById("applicationList").addEventListener("change", async event => {
     const id = event.target.dataset.statusId;
     if (!id) return;
     const item = applications.find(app => app.id === id);
+    if (!item) return;
     item.status = event.target.value;
     item.updatedAt = Date.now();
-    await putRecord(STORE_APPLICATIONS, item);
-    await loadState();
-    renderAll();
-    showToast("状态已更新");
+    try {
+      await dbUpsert(TABLE_APPLICATIONS, applicationToRow(item));
+      await loadState();
+      renderAll();
+      showToast("状态已更新");
+    } catch (err) {
+      showToast("更新失败：" + (err?.message || "未知错误"));
+    }
   });
 
   document.getElementById("applicationList").addEventListener("click", async event => {
@@ -708,12 +1133,15 @@ function bindEvents() {
     if (editId) editApplication(editId);
 
     if (deleteId && confirm("确定删除这条申请记录吗？")) {
-      await deleteRecord(STORE_APPLICATIONS, deleteId);
-      const related = interviews.filter(item => item.applicationId === deleteId);
-      for (const interview of related) await deleteRecord(STORE_INTERVIEWS, interview.id);
-      await loadState();
-      renderAll();
-      showToast("申请已删除");
+      try {
+        await dbDeleteById(TABLE_APPLICATIONS, deleteId);
+        // 关联面试由数据库外键 ON DELETE CASCADE 自动清理，但前端仍需重新加载
+        await loadState();
+        renderAll();
+        showToast("申请已删除");
+      } catch (err) {
+        showToast("删除失败：" + (err?.message || "未知错误"));
+      }
     }
   });
 
@@ -723,10 +1151,14 @@ function bindEvents() {
     if (editId) editInterview(editId);
 
     if (deleteId && confirm("确定删除这条面试记录吗？")) {
-      await deleteRecord(STORE_INTERVIEWS, deleteId);
-      await loadState();
-      renderAll();
-      showToast("面试已删除");
+      try {
+        await dbDeleteById(TABLE_INTERVIEWS, deleteId);
+        await loadState();
+        renderAll();
+        showToast("面试已删除");
+      } catch (err) {
+        showToast("删除失败：" + (err?.message || "未知错误"));
+      }
     }
   });
 
@@ -770,41 +1202,78 @@ function bindEvents() {
 
   document.getElementById("compactModeToggle").addEventListener("change", async event => {
     document.body.classList.toggle("compact", event.target.checked);
-    await saveSetting("compactMode", event.target.checked);
+    try {
+      await saveSetting("compactMode", event.target.checked);
+    } catch (err) {
+      showToast("设置保存失败");
+    }
   });
 
   document.getElementById("defaultActiveToggle").addEventListener("change", async event => {
-    await saveSetting("defaultActive", event.target.checked);
+    try {
+      await saveSetting("defaultActive", event.target.checked);
+    } catch (err) {
+      showToast("设置保存失败");
+    }
   });
 
   document.getElementById("resetDataBtn").addEventListener("click", async () => {
-    if (!confirm("确定清空所有本地数据吗？此操作不可撤销。")) return;
+    if (!confirm("确定清空当前账户下所有数据吗？此操作不可撤销。")) return;
 
-    await clearStore(STORE_APPLICATIONS);
-    await clearStore(STORE_INTERVIEWS);
-    await clearStore(STORE_SETTINGS);
-    await seedIfNeeded();
-    await loadState();
-    renderAll();
-    showToast("数据已重置");
+    try {
+      await dbClearApplications();
+      await dbClearInterviews();
+      await dbClearSettings();
+      await seedIfNeeded();
+      await loadState();
+      renderAll();
+      showToast("数据已重置");
+    } catch (err) {
+      showToast("重置失败：" + (err?.message || "未知错误"));
+    }
   });
 }
 
-async function init() {
-  try {
-    db = await openDB();
-    await seedIfNeeded();
-    await loadState();
-    renderStatusOptions();
-    renderAll();
-    bindEvents();
+// ============================================================
+// 入口
+// ============================================================
 
-    if ("serviceWorker" in navigator && location.protocol !== "file:") {
-      navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+async function init() {
+  // 1. 校验 Supabase 配置
+  if (!SUPABASE_CONFIGURED || !supabase) {
+    showConfigScreen();
+    return;
+  }
+
+  // 2. 绑定所有事件（包括认证表单、主应用导航等，用 eventsBound 防止重复绑定）
+  bindEvents();
+
+  // 3. 订阅认证状态变化
+  supabase.auth.onAuthStateChange((event, session) => {
+    onAuthStateChanged(event, session);
+  });
+
+  // 4. 检查现有会话
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data?.session) {
+      // 已有会话，触发登录后的 UI 加载
+      await onAuthStateChanged("INITIAL_SESSION", data.session);
+    } else {
+      showAuthScreen();
+      // 恢复记住的邮箱
+      loadRememberedEmail();
+      // 初始化密码强度显示
+      setAuthMode("login");
     }
-  } catch (error) {
-    console.error(error);
-    alert("本地数据库初始化失败，请使用最新版 Chrome、Edge 或 Safari 打开。");
+  } catch (err) {
+    console.error(err);
+    showAuthScreen();
+  }
+
+  // 5. 注册 Service Worker（仅用于静态资源缓存）
+  if ("serviceWorker" in navigator && location.protocol !== "file:") {
+    navigator.serviceWorker.register("./service-worker.js").catch(() => {});
   }
 }
 
