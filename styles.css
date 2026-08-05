@@ -68,6 +68,7 @@ button { cursor: pointer; }
   height: auto;
   display: block;
   filter: drop-shadow(0 2px 6px rgba(30, 95, 184, 0.25));
+  clip-path: inset(12px 10px 12px 10px);
 }
 
 .brand h1 {
@@ -920,6 +921,7 @@ body.compact .cards-list { gap: 8px; }
 .auth-head .brand-logo {
   width: 100px;
   height: auto;
+  clip-path: inset(12px 10px 12px 10px);
 }
 
 .auth-head h2 {

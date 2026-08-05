@@ -1,4 +1,4 @@
-const CACHE_NAME = "offerflow-v5-logo-svg-fix";
+const CACHE_NAME = "offerflow-v6-logo-crop";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./supabase-config.js", "./manifest.json", "./logo.svg"];
 
 self.addEventListener("install", event => {
