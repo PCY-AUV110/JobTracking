@@ -29,44 +29,44 @@ const PAGE_META = {
 // ---- 新用户首次登录时的演示数据（id 与时间戳在写入时生成）----
 const seedApplications = [
   {
-    company: "TMX Group",
-    role: "Corporate Functions Coordinator Intern",
-    status: "在线测评",
-    appliedDate: "2026-08-03",
-    location: "Toronto, ON",
-    source: "Company Website",
-    jobUrl: "",
-    notes: "完成在线 assessment 后跟进。"
-  },
-  {
-    company: "University of Toronto",
-    role: "Lab Assistant Position",
-    status: "准备申请",
-    appliedDate: "2026-08-04",
-    location: "Toronto, ON",
-    source: "Email Outreach",
-    jobUrl: "",
-    notes: "联系 EESC30 课程老师 Lauren Hemara。"
-  },
-  {
-    company: "Goodrec",
-    role: "Marketing / Community Intern",
-    status: "审核中",
-    appliedDate: "2026-07-29",
-    location: "Toronto, ON",
+    company: "公司 A",
+    role: "软件工程师",
+    status: "已申请",
+    appliedDate: "2026-08-01",
+    location: "远程",
     source: "LinkedIn",
     jobUrl: "",
-    notes: "突出社交媒体、活动摄影及球队社区运营经验。"
+    notes: "Demo 示例：完成 OA 测试后跟进。"
   },
   {
-    company: "Sample Company",
-    role: "Business Operations Intern",
-    status: "已终止",
-    appliedDate: "2026-07-18",
-    location: "Remote",
-    source: "Indeed",
+    company: "公司 B",
+    role: "数据分析师",
+    status: "面试中",
+    appliedDate: "2026-08-03",
+    location: "上海",
+    source: "官网",
     jobUrl: "",
-    notes: "岗位已关闭。"
+    notes: "Demo 示例：下周二技术面试。"
+  },
+  {
+    company: "公司 C",
+    role: "产品经理",
+    status: "Offer",
+    appliedDate: "2026-07-20",
+    location: "北京",
+    source: "猎头推荐",
+    jobUrl: "",
+    notes: "Demo 示例：Offer 已收到，待确认。"
+  },
+  {
+    company: "公司 D",
+    role: "市场营销实习生",
+    status: "已拒绝",
+    appliedDate: "2026-07-15",
+    location: "深圳",
+    source: "Boss 直聘",
+    jobUrl: "",
+    notes: "Demo 示例：简历未通过初筛。"
   }
 ];
 
@@ -81,6 +81,40 @@ let currentTab = "active";
 let calendarCursor = new Date();
 let currentUser = null;
 let authMode = "login"; // "login" | "signup"
+
+// ---- 新用户引导 ----
+const ONBOARDING_STEPS = [
+  {
+    title: "欢迎使用 OfferFlow",
+    text: "这是你的求职管理中心。我们已准备了 4 条示例数据（Demo），帮助你快速上手。",
+    highlight: "sidebar",
+    posClass: "tip-pos-sidebar",
+    arrowDir: "right"
+  },
+  {
+    title: "添加新申请",
+    text: "点击右上角「＋ 添加申请」，记录你投递的每一个岗位，包括公司、职位、状态等。",
+    highlight: "addBtn",
+    posClass: "tip-pos-add",
+    arrowDir: "bottom"
+  },
+  {
+    title: "搜索与筛选",
+    text: "在搜索框中输入关键词，或用状态筛选快速定位特定阶段的申请。",
+    highlight: "searchBox",
+    posClass: "tip-pos-search",
+    arrowDir: "bottom"
+  },
+  {
+    title: "侧边栏导航",
+    text: "左侧栏切换申请看板、面试日程、数据统计和系统设置。数据自动同步到云端。",
+    highlight: "navItems",
+    posClass: "tip-pos-nav",
+    arrowDir: "right"
+  }
+];
+let onboardingIndex = 0;
+const ONBOARDING_SEEN_KEY = "offerflow:onboarding_seen";
 
 // ============================================================
 // Supabase 数据访问层
@@ -459,6 +493,10 @@ async function onAuthStateChanged(event, session) {
       await loadState();
       renderStatusOptions();
       renderAll();
+      // 首次登录且未看过引导时展示 onboarding
+      if (!isOnboardingSeen()) {
+        setTimeout(startOnboarding, 400);
+      }
     } catch (err) {
       console.error(err);
       showToast("加载数据失败：" + (err?.message || "未知错误"));
@@ -1232,6 +1270,71 @@ function bindEvents() {
       showToast("重置失败：" + (err?.message || "未知错误"));
     }
   });
+
+  // ---- 新用户引导 ----
+  document.getElementById("onboardingNextBtn").addEventListener("click", nextOnboardingStep);
+  document.getElementById("onboardingSkipBtn").addEventListener("click", dismissOnboarding);
+}
+
+// ============================================================
+// 新用户引导 Onboarding
+// ============================================================
+
+function startOnboarding() {
+  const overlay = document.getElementById("onboardingOverlay");
+  overlay.style.display = "block";
+  onboardingIndex = 0;
+  renderOnboardingStep();
+}
+
+function renderOnboardingStep() {
+  const step = ONBOARDING_STEPS[onboardingIndex];
+  const total = ONBOARDING_STEPS.length;
+
+  // 更新高亮区域
+  const backdrop = document.querySelector(".onboarding-backdrop");
+  backdrop.setAttribute("data-highlight", step.highlight);
+
+  // 更新提示卡片
+  const tip = document.getElementById("onboardingTip");
+  tip.className = "onboarding-tip " + step.posClass;
+
+  document.getElementById("onboardingBadge").textContent = `${onboardingIndex + 1} / ${total}`;
+  document.getElementById("onboardingTitle").textContent = step.title;
+  document.getElementById("onboardingText").textContent = step.text;
+
+  // 更新箭头方向
+  const arrow = document.getElementById("onboardingArrow");
+  arrow.className = "tip-arrow " + step.arrowDir;
+
+  // 更新按钮文案
+  const nextBtn = document.getElementById("onboardingNextBtn");
+  nextBtn.textContent = onboardingIndex === total - 1 ? "开始使用" : "下一步";
+}
+
+function nextOnboardingStep() {
+  if (onboardingIndex < ONBOARDING_STEPS.length - 1) {
+    onboardingIndex++;
+    renderOnboardingStep();
+  } else {
+    dismissOnboarding();
+  }
+}
+
+function dismissOnboarding() {
+  document.getElementById("onboardingOverlay").style.display = "none";
+  try {
+    const seen = JSON.parse(localStorage.getItem(ONBOARDING_SEEN_KEY) || "{}");
+    seen[currentUser?.id || "anonymous"] = true;
+    localStorage.setItem(ONBOARDING_SEEN_KEY, JSON.stringify(seen));
+  } catch (e) { /* ignore */ }
+}
+
+function isOnboardingSeen() {
+  try {
+    const seen = JSON.parse(localStorage.getItem(ONBOARDING_SEEN_KEY) || "{}");
+    return !!seen[currentUser?.id || "anonymous"];
+  } catch (e) { return false; }
 }
 
 // ============================================================

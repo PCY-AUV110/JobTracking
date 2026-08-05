@@ -444,6 +444,24 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- 新用户引导遮罩 -->
+<div class="onboarding-overlay" id="onboardingOverlay" style="display:none">
+  <div class="onboarding-backdrop"></div>
+  <div class="onboarding-tip" id="onboardingTip">
+    <div class="tip-arrow" id="onboardingArrow"></div>
+    <div class="tip-card">
+      <div class="tip-badge" id="onboardingBadge">1 / 4</div>
+      <h3 id="onboardingTitle">欢迎使用 OfferFlow</h3>
+      <p id="onboardingText">让我们快速了解一下核心功能。</p>
+      <div class="tip-actions">
+        <button class="btn secondary" id="onboardingSkipBtn">跳过</button>
+        <button class="btn primary" id="onboardingNextBtn">下一步</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="./supabase-config.js"></script>
 <script src="./app.js"></script>
 </body>
