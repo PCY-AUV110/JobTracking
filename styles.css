@@ -984,6 +984,252 @@ button { cursor: pointer; }
   margin-top: 20px;
 }
 
+/* ============================================================
+   AI 智能识别区
+   ============================================================ */
+.ai-panel {
+  border: 1px solid var(--claude-line);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(30, 95, 184, 0.04), rgba(74, 144, 217, 0.04));
+  margin-bottom: 18px;
+  overflow: hidden;
+  transition: border-color .2s;
+}
+
+.ai-panel:hover { border-color: rgba(30, 95, 184, 0.3); }
+
+.ai-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ai-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--claude-ink);
+}
+
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #1E5FB8, #4A90D9);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+.ai-panel-toggle {
+  border: 0;
+  background: transparent;
+  color: var(--claude-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  transition: transform .2s ease, background .15s;
+}
+
+.ai-panel.collapsed .ai-panel-toggle { transform: rotate(-90deg); }
+.ai-panel-toggle:hover { background: rgba(30, 95, 184, 0.08); }
+
+.ai-panel-body {
+  padding: 0 16px 16px;
+  display: block;
+}
+
+.ai-panel.collapsed .ai-panel-body { display: none; }
+
+.ai-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--claude-line);
+  border-radius: 12px;
+  background: #fff;
+  margin-bottom: 14px;
+}
+
+.ai-tab {
+  border: 0;
+  background: transparent;
+  color: var(--claude-muted);
+  padding: 8px 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: .15s;
+}
+
+.ai-tab.active {
+  background: var(--claude-soft);
+  color: var(--claude-orange-dark);
+  font-weight: 700;
+}
+
+.ai-tab-pane { display: none; }
+.ai-tab-pane.active { display: block; }
+
+/* 拖拽上传区 */
+.ai-dropzone {
+  position: relative;
+  border: 2px dashed var(--claude-line);
+  border-radius: 14px;
+  background: #fff;
+  min-height: 140px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  overflow: hidden;
+}
+
+.ai-dropzone:hover,
+.ai-dropzone.dragover {
+  border-color: var(--claude-orange);
+  background: rgba(30, 95, 184, 0.04);
+}
+
+.ai-dropzone:focus-visible {
+  outline: 3px solid rgba(30, 95, 184, 0.3);
+  outline-offset: 2px;
+}
+
+.ai-dropzone-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 20px;
+}
+
+.ai-dropzone-icon { color: var(--claude-muted); }
+
+.ai-dropzone-text {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--claude-ink);
+}
+
+.ai-dropzone-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--claude-muted);
+}
+
+.ai-preview-img {
+  max-width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  display: block;
+}
+
+.ai-dropzone.has-preview .ai-dropzone-inner { display: none; }
+
+/* 邮件文本框 */
+.ai-email-textarea {
+  width: 100%;
+  min-height: 140px;
+  border: 1px solid var(--claude-line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+}
+
+.ai-email-textarea:focus {
+  border-color: var(--claude-orange);
+  box-shadow: 0 0 0 3px rgba(30, 95, 184, 0.1);
+}
+
+/* 解析按钮 */
+.ai-parse-btn {
+  width: 100%;
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ai-parse-btn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.ai-parse-btn.loading {
+  pointer-events: none;
+  opacity: .8;
+}
+
+/* 加载动画 */
+.ai-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px;
+  color: var(--claude-orange-dark);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ai-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(30, 95, 184, 0.2);
+  border-top-color: var(--claude-orange);
+  border-radius: 50%;
+  animation: ai-spin .8s linear infinite;
+}
+
+@keyframes ai-spin { to { transform: rotate(360deg); } }
+
+/* 错误/成功提示 */
+.ai-message {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.ai-message.error {
+  background: #fdecea;
+  color: #a02828;
+}
+
+.ai-message.success {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+/* 小屏适配 */
+@media (max-width: 540px) {
+  .ai-tabs { display: flex; }
+  .ai-tab { flex: 1; padding: 8px 6px; font-size: 12px; }
+}
+
 .toast {
   position: fixed;
   right: 22px;

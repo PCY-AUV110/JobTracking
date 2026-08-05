@@ -408,6 +408,66 @@
     </div>
     <form id="applicationForm">
       <input type="hidden" id="applicationId" />
+
+      <!-- 智能识别区：可选，用于一键自动填充下方表单 -->
+      <section class="ai-panel" id="aiPanel">
+        <div class="ai-panel-head" id="aiPanelHead">
+          <div class="ai-panel-title">
+            <span class="ai-badge">AI</span>
+            <span>智能识别（可选）</span>
+          </div>
+          <button type="button" class="ai-panel-toggle" id="aiPanelToggle" aria-label="展开智能识别">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M7 10l5 5 5-5z"/></svg>
+          </button>
+        </div>
+        <div class="ai-panel-body" id="aiPanelBody">
+          <div class="ai-tabs">
+            <button type="button" class="ai-tab active" data-ai-tab="screenshot">上传截图</button>
+            <button type="button" class="ai-tab" data-ai-tab="email">粘贴邮件</button>
+          </div>
+
+          <!-- 截图识别 -->
+          <div class="ai-tab-pane active" data-ai-pane="screenshot">
+            <div class="ai-dropzone" id="aiDropzone" tabindex="0">
+              <input type="file" id="aiFileInput" accept="image/*" hidden />
+              <div class="ai-dropzone-inner" id="aiDropzoneInner">
+                <svg class="ai-dropzone-icon" viewBox="0 0 24 24" width="36" height="36">
+                  <path fill="currentColor" d="M19 13v6H5v-6H3v8h18v-8zM6 9l1.41 1.41L11 6.83V18h2V6.83l3.59 3.58L18 9l-6-6z"/>
+                </svg>
+                <p class="ai-dropzone-text">点击或拖拽图片到此处</p>
+                <p class="ai-dropzone-hint">支持 PNG / JPG / WEBP，单张不超过 4MB</p>
+              </div>
+              <img class="ai-preview-img" id="aiPreviewImg" alt="预览" hidden />
+            </div>
+            <button type="button" class="btn primary ai-parse-btn" id="aiParseScreenshotBtn" disabled>
+              <span class="btn-text">解析截图</span>
+            </button>
+          </div>
+
+          <!-- 邮件识别 -->
+          <div class="ai-tab-pane" data-ai-pane="email">
+            <textarea
+              class="ai-email-textarea"
+              id="aiEmailText"
+              placeholder="粘贴求职邮件正文、offer 通知、面试邀请等文本…&#10;&#10;示例：&#10;您好，感谢您对字节跳动「高级前端工程师」岗位的关注。我们已收到您的简历，初步评估通过后将安排在线测评，工作地点为北京。"
+              rows="6"
+            ></textarea>
+            <button type="button" class="btn primary ai-parse-btn" id="aiParseEmailBtn" disabled>
+              <span class="btn-text">解析邮件</span>
+            </button>
+          </div>
+
+          <!-- 加载状态 -->
+          <div class="ai-loading" id="aiLoading" hidden>
+            <span class="ai-spinner"></span>
+            <span>AI 正在识别…</span>
+          </div>
+
+          <!-- 错误/成功提示 -->
+          <div class="ai-message" id="aiMessage" hidden></div>
+        </div>
+      </section>
+
       <div class="form-grid">
         <label class="field">
           <span>公司名称 *</span>

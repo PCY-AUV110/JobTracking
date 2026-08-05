@@ -985,12 +985,312 @@ function renderAll() {
   renderAnalytics();
 }
 
+// ============================================================
+// AI 智能识别模块
+// 调用 Supabase Edge Functions：parse-screenshot / parse-text
+// ============================================================
+
+// 边缘函数根地址（在 supabase-config.js 中定义的 SUPABASE_URL 全局可用）
+function getFunctionsBase() {
+  return `${SUPABASE_URL}/functions/v1`;
+}
+
+// 当前选中的图片（base64 + mime），供解析按钮使用
+let aiSelectedImage = null;
+
+// 重置 AI 面板到初始状态
+function resetAIPanel() {
+  aiSelectedImage = null;
+  const fileInput = document.getElementById("aiFileInput");
+  if (fileInput) fileInput.value = "";
+  const previewImg = document.getElementById("aiPreviewImg");
+  if (previewImg) previewImg.hidden = true;
+  const dropzone = document.getElementById("aiDropzone");
+  if (dropzone) dropzone.classList.remove("has-preview", "dragover");
+  const emailText = document.getElementById("aiEmailText");
+  if (emailText) emailText.value = "";
+  setAIParseBtnState();
+  setAILoading(false);
+  showAIMessage(null);
+  // 默认折叠面板（每次打开模态框都收起，避免干扰手动填写）
+  const panel = document.getElementById("aiPanel");
+  if (panel) panel.classList.add("collapsed");
+}
+
+// 切换 AI 面板展开/折叠
+function toggleAIPanel() {
+  document.getElementById("aiPanel").classList.toggle("collapsed");
+}
+
+// 切换截图/邮件 Tab
+function switchAITab(tabName) {
+  document.querySelectorAll(".ai-tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.aiTab === tabName);
+  });
+  document.querySelectorAll(".ai-tab-pane").forEach(pane => {
+    pane.classList.toggle("active", pane.dataset.aiPane === tabName);
+  });
+}
+
+// 处理文件选择（来自 input 或拖拽）
+async function handleAIFileSelect(file) {
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    showAIMessage("error", "请选择图片文件（PNG / JPG / WEBP）。");
+    return;
+  }
+  if (file.size > 4 * 1024 * 1024) {
+    showAIMessage("error", "图片过大（超过 4MB），请选择更小的图片。");
+    return;
+  }
+  try {
+    // 压缩图片：长边限制 1280，JPEG 质量 0.8
+    // 降低传输体积与 OpenAI tokens 消耗
+    const { base64, mime } = await compressImage(file, 1280, 0.8);
+    aiSelectedImage = { base64, mime };
+    // 显示预览
+    const previewImg = document.getElementById("aiPreviewImg");
+    previewImg.src = `data:${mime};base64,${base64}`;
+    previewImg.hidden = false;
+    document.getElementById("aiDropzone").classList.add("has-preview");
+    showAIMessage(null);
+    setAIParseBtnState();
+  } catch (err) {
+    showAIMessage("error", "图片读取失败：" + (err.message || err));
+  }
+}
+
+// 图片压缩：通过 canvas 缩放并转 base64
+// 返回 { base64, mime }
+function compressImage(file, maxEdge, quality) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxEdge) {
+          height = Math.round((height * maxEdge) / width);
+          width = maxEdge;
+        } else if (height > maxEdge) {
+          width = Math.round((width * maxEdge) / height);
+          height = maxEdge;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        // PNG 透明通道会被合并到白底，避免 OpenAI 解析异常
+        ctx.globalCompositeOperation = "destination-over";
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        const base64 = dataUrl.split(",")[1];
+        resolve({ base64, mime: "image/jpeg" });
+      };
+      img.onerror = () => reject(new Error("图片解码失败"));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error("文件读取失败"));
+    reader.readAsDataURL(file);
+  });
+}
+
+// 根据当前输入状态启用/禁用解析按钮
+function setAIParseBtnState() {
+  const screenshotBtn = document.getElementById("aiParseScreenshotBtn");
+  const emailBtn = document.getElementById("aiParseEmailBtn");
+  screenshotBtn.disabled = !aiSelectedImage;
+  const emailText = document.getElementById("aiEmailText").value.trim();
+  emailBtn.disabled = emailText.length === 0;
+}
+
+// 设置加载状态
+function setAILoading(loading) {
+  const loadingEl = document.getElementById("aiLoading");
+  loadingEl.hidden = !loading;
+  // 禁用解析按钮，防止重复点击
+  document.getElementById("aiParseScreenshotBtn").classList.toggle("loading", loading);
+  document.getElementById("aiParseEmailBtn").classList.toggle("loading", loading);
+}
+
+// 显示 AI 提示信息（type: null | "error" | "success"）
+function showAIMessage(type, text) {
+  const msgEl = document.getElementById("aiMessage");
+  if (!type) {
+    msgEl.hidden = true;
+    msgEl.textContent = "";
+    msgEl.className = "ai-message";
+    return;
+  }
+  msgEl.hidden = false;
+  msgEl.textContent = text;
+  msgEl.className = `ai-message ${type}`;
+}
+
+// 调用 parse-screenshot 边缘函数
+async function parseScreenshot() {
+  if (!aiSelectedImage) return;
+  await callAIFunction("parse-screenshot", {
+    image: aiSelectedImage.base64,
+    mime: aiSelectedImage.mime
+  });
+}
+
+// 调用 parse-text 边缘函数
+async function parseEmail() {
+  const text = document.getElementById("aiEmailText").value.trim();
+  if (!text) return;
+  await callAIFunction("parse-text", { text });
+}
+
+// 通用调用：请求边缘函数并填充表单
+async function callAIFunction(name, body) {
+  setAILoading(true);
+  showAIMessage(null);
+  try {
+    const res = await fetch(`${getFunctionsBase()}/${name}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // Supabase 边缘函数需要 anon key 鉴权
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      throw new Error(data.error || `请求失败（${res.status}）`);
+    }
+    applyAIResult(data);
+    const filledCount = countFilledFields(data);
+    showAIMessage("success", `已识别 ${filledCount} 个字段，请核对后保存。`);
+  } catch (err) {
+    showAIMessage("error", friendlyAIError(err));
+  } finally {
+    setAILoading(false);
+  }
+}
+
+// 将 AI 返回的字段填充到表单
+function applyAIResult(result) {
+  const mapping = {
+    company: "companyInput",
+    role: "roleInput",
+    location: "locationInput",
+    source: "sourceInput",
+    jobUrl: "jobUrlInput",
+    notes: "notesInput",
+    status: "statusInput"
+  };
+  Object.entries(mapping).forEach(([key, elId]) => {
+    const value = result[key];
+    if (value && typeof value === "string" && value.trim()) {
+      const el = document.getElementById(elId);
+      // 仅在字段为空时覆盖，避免覆盖用户已编辑的内容
+      if (el && !el.value.trim()) {
+        el.value = value.trim();
+      } else if (el) {
+        // 已有值时，对 notes 采用追加策略
+        if (key === "notes" && el.value && !el.value.includes(value.trim())) {
+          el.value = el.value + "\n" + value.trim();
+        }
+      }
+    }
+  });
+  // 如果未设置申请日期，默认填今天
+  const dateInput = document.getElementById("appliedDateInput");
+  if (dateInput && !dateInput.value) {
+    dateInput.value = new Date().toISOString().slice(0, 10);
+  }
+}
+
+// 统计 AI 识别到多少个有效字段
+function countFilledFields(result) {
+  const keys = ["company", "role", "location", "source", "jobUrl", "notes", "status"];
+  return keys.filter(k => result[k] && String(result[k]).trim()).length;
+}
+
+// 友好化 AI 错误提示
+function friendlyAIError(err) {
+  const msg = err.message || String(err);
+  if (/Failed to fetch|NetworkError|load failed/i.test(msg)) {
+    return "网络连接失败，请检查网络或稍后再试。";
+  }
+  if (/401|403|apikey|Unauthorized/i.test(msg)) {
+    return "鉴权失败，请确认 Supabase 配置正确。";
+  }
+  if (/OPENAI_API_KEY/i.test(msg)) {
+    return "服务端未配置 OpenAI API Key，请联系管理员或在 Supabase Secrets 中设置。";
+  }
+  return msg;
+}
+
+// 绑定 AI 面板的所有事件
+function initAIPanel() {
+  // 折叠头点击
+  document.getElementById("aiPanelHead").addEventListener("click", toggleAIPanel);
+
+  // Tab 切换
+  document.querySelectorAll(".ai-tab").forEach(tab => {
+    tab.addEventListener("click", () => switchAITab(tab.dataset.aiTab));
+  });
+
+  // 拖拽上传区
+  const dropzone = document.getElementById("aiDropzone");
+  const fileInput = document.getElementById("aiFileInput");
+
+  // 点击/键盘触发文件选择
+  dropzone.addEventListener("click", () => fileInput.click());
+  dropzone.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      fileInput.click();
+    }
+  });
+
+  fileInput.addEventListener("change", e => {
+    if (e.target.files && e.target.files[0]) {
+      handleAIFileSelect(e.target.files[0]);
+    }
+  });
+
+  // 拖拽事件
+  ["dragenter", "dragover"].forEach(evt => {
+    dropzone.addEventListener(evt, e => {
+      e.preventDefault();
+      dropzone.classList.add("dragover");
+    });
+  });
+  ["dragleave", "drop"].forEach(evt => {
+    dropzone.addEventListener(evt, e => {
+      e.preventDefault();
+      dropzone.classList.remove("dragover");
+    });
+  });
+  dropzone.addEventListener("drop", e => {
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleAIFileSelect(e.dataTransfer.files[0]);
+    }
+  });
+
+  // 邮件文本框输入时启用/禁用按钮
+  document.getElementById("aiEmailText").addEventListener("input", setAIParseBtnState);
+
+  // 解析按钮
+  document.getElementById("aiParseScreenshotBtn").addEventListener("click", parseScreenshot);
+  document.getElementById("aiParseEmailBtn").addEventListener("click", parseEmail);
+}
+
 function resetApplicationForm() {
   document.getElementById("applicationForm").reset();
   document.getElementById("applicationId").value = "";
   document.getElementById("applicationModalTitle").textContent = "添加职位申请";
   document.getElementById("appliedDateInput").value = new Date().toISOString().slice(0, 10);
   document.getElementById("statusInput").value = "准备申请";
+  resetAIPanel();
 }
 
 function editApplication(id) {
@@ -1007,6 +1307,7 @@ function editApplication(id) {
   document.getElementById("jobUrlInput").value = item.jobUrl || "";
   document.getElementById("notesInput").value = item.notes || "";
   document.getElementById("applicationModalTitle").textContent = "编辑职位申请";
+  resetAIPanel();
   openModal("applicationModal");
 }
 
@@ -1137,6 +1438,9 @@ let eventsBound = false;
 function bindEvents() {
   if (eventsBound) return;
   eventsBound = true;
+
+  // ---- AI 智能识别面板 ----
+  initAIPanel();
 
   // ---- 认证相关 ----
   document.querySelectorAll(".auth-tab").forEach(tab => {
