@@ -1216,14 +1216,17 @@ function countFilledFields(result) {
 // 友好化 AI 错误提示
 function friendlyAIError(err) {
   const msg = err.message || String(err);
+  if (/404|Not Found/i.test(msg)) {
+    return "AI 服务未部署。请前往 Supabase Dashboard → Edge Functions 部署 parse-screenshot 和 parse-text 函数。";
+  }
   if (/Failed to fetch|NetworkError|load failed/i.test(msg)) {
     return "网络连接失败，请检查网络或稍后再试。";
   }
   if (/401|403|apikey|Unauthorized/i.test(msg)) {
-    return "鉴权失败，请确认 Supabase 配置正确。";
+    return "鉴权失败，请确认 Edge Functions 创建时已关闭 Verify JWT。";
   }
   if (/OPENAI_API_KEY/i.test(msg)) {
-    return "服务端未配置 OpenAI API Key，请联系管理员或在 Supabase Secrets 中设置。";
+    return "服务端未配置 OpenAI API Key，请在 Supabase Dashboard → Settings → Edge Functions → Secrets 中添加。";
   }
   return msg;
 }
