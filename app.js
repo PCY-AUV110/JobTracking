@@ -287,10 +287,21 @@ function setAuthMode(mode) {
 
 function updateAuthUI() {
   const emailEl = document.getElementById("authUserEmail");
+  const avatarEl = document.getElementById("userAvatar");
+  const menuAvatarEl = document.getElementById("userMenuAvatar");
+  const menuEmailEl = document.getElementById("userMenuEmail");
+
   if (currentUser?.email) {
     emailEl.textContent = currentUser.email;
+    const initial = currentUser.email.charAt(0).toUpperCase();
+    avatarEl.textContent = initial;
+    menuAvatarEl.textContent = initial;
+    menuEmailEl.textContent = currentUser.email;
   } else {
     emailEl.textContent = "未登录";
+    avatarEl.textContent = "U";
+    menuAvatarEl.textContent = "U";
+    menuEmailEl.textContent = "未登录";
   }
 }
 
@@ -476,6 +487,96 @@ async function handleLogout() {
   }
 }
 
+// 修改密码
+async function handleChangePassword(e) {
+  e.preventDefault();
+  const newPwd = document.getElementById("newPasswordInput").value;
+  const confirmPwd = document.getElementById("confirmPasswordInput").value;
+  const errEl = document.getElementById("changePwdError");
+  const sucEl = document.getElementById("changePwdSuccess");
+  errEl.textContent = "";
+  sucEl.classList.remove("show");
+
+  if (newPwd !== confirmPwd) {
+    errEl.textContent = "两次输入的密码不一致";
+    return;
+  }
+  if (newPwd.length < 6) {
+    errEl.textContent = "密码至少 6 位";
+    return;
+  }
+
+  try {
+    const { error } = await supabase.auth.updateUser({ password: newPwd });
+    if (error) throw error;
+    sucEl.textContent = "密码修改成功！";
+    sucEl.classList.add("show");
+    document.getElementById("newPasswordInput").value = "";
+    document.getElementById("confirmPasswordInput").value = "";
+    setTimeout(() => {
+      closeModal("changePasswordModal");
+      sucEl.classList.remove("show");
+    }, 1500);
+  } catch (err) {
+    errEl.textContent = err?.message || "修改失败";
+  }
+}
+
+// 导出数据为 JSON
+async function exportData() {
+  try {
+    const { data: { applications }, error: err1 } = await supabase
+      .from("applications")
+      .select("*");
+    if (err1) throw err1;
+    const { data: { interviews }, error: err2 } = await supabase
+      .from("interviews")
+      .select("*");
+    if (err2) throw err2;
+
+    const payload = {
+      app: "OfferFlow",
+      exportedAt: new Date().toISOString(),
+      applications: applications || [],
+      interviews: interviews || []
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `offerflow-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("数据已导出");
+  } catch (err) {
+    showToast("导出失败：" + (err?.message || "未知错误"));
+  }
+}
+
+// 注销账户
+async function handleDeleteAccount() {
+  if (!confirm("⚠️ 注销账户将永久删除你的所有数据（申请记录、面试、设置），此操作不可恢复！")) return;
+  const email = prompt("请输入你的邮箱地址以确认注销：");
+  if (!email) return;
+  if (email.trim() !== (currentUser?.email || "")) {
+    alert("邮箱不匹配，注销已取消。");
+    return;
+  }
+
+  try {
+    // 先删除用户数据
+    await supabase.from("applications").delete().eq("user_id", currentUser.id);
+    await supabase.from("interviews").delete().eq("user_id", currentUser.id);
+    await supabase.from("settings").delete().eq("user_id", currentUser.id);
+    // 再删除 auth 用户（需通过管理员 API，这里先清除本地会话）
+    // 注意：完整删除需要 Edge Function + service_role key
+    await supabase.auth.signOut();
+    showToast("账户已注销");
+  } catch (err) {
+    showToast("注销失败：" + (err?.message || "未知错误"));
+  }
+}
+
 // 认证状态变化时的统一入口
 async function onAuthStateChanged(event, session) {
   // SIGNED_OUT 可能是用户主动退出，也可能是 token 过期 / 被服务端吊销
@@ -647,6 +748,11 @@ function renderApplications() {
   const keyword = document.getElementById("searchInput").value.trim().toLowerCase();
   const statusFilter = document.getElementById("statusFilter").value;
   const sort = document.getElementById("sortFilter").value;
+  const clearBtn = document.getElementById("searchClearBtn");
+  const countEl = document.getElementById("searchResultCount");
+
+  // 清除按钮可见性
+  clearBtn.style.display = keyword ? "flex" : "none";
 
   let filtered = applications.filter(item => {
     const tabMatch = currentTab === "all" || statusGroup(item.status) === currentTab;
@@ -655,6 +761,13 @@ function renderApplications() {
     const statusMatch = statusFilter === "全部" || item.status === statusFilter;
     return tabMatch && searchMatch && statusMatch;
   });
+
+  // 搜索结果计数
+  if (keyword || statusFilter !== "全部") {
+    countEl.textContent = `找到 ${filtered.length} 条结果`;
+  } else {
+    countEl.textContent = "";
+  }
 
   filtered.sort((a, b) => {
     if (sort === "company") return a.company.localeCompare(b.company, "zh-CN");
@@ -1055,7 +1168,34 @@ function bindEvents() {
   });
   document.getElementById("forgotPasswordForm").addEventListener("submit", handleForgotPassword);
 
-  document.getElementById("logoutBtn").addEventListener("click", handleLogout);
+  // ---- 用户卡 ----
+  const userCardMenuBtn = document.getElementById("userCardMenuBtn");
+  const userMenu = document.getElementById("userMenu");
+  if (userCardMenuBtn) {
+    userCardMenuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      userMenu.style.display = userMenu.style.display === "block" ? "none" : "block";
+    });
+  }
+  document.addEventListener("click", (e) => {
+    if (!userMenu.contains(e.target) && !e.target.closest("#userCardMenuBtn")) {
+      userMenu.style.display = "none";
+    }
+  });
+  document.getElementById("logoutMenuItem").addEventListener("click", () => {
+    userMenu.style.display = "none";
+    handleLogout();
+  });
+  document.getElementById("changePasswordBtn").addEventListener("click", () => {
+    userMenu.style.display = "none";
+    openModal("changePasswordModal");
+  });
+  document.getElementById("deleteAccountBtn").addEventListener("click", handleDeleteAccount);
+  document.getElementById("exportDataMenuItem").addEventListener("click", () => {
+    userMenu.style.display = "none";
+    exportData();
+  });
+  document.getElementById("changePasswordForm").addEventListener("submit", handleChangePassword);
 
   // ---- 主应用导航 ----
   document.querySelectorAll(".nav-item").forEach(button => {
@@ -1200,7 +1340,18 @@ function bindEvents() {
     }
   });
 
-  document.getElementById("searchInput").addEventListener("input", renderApplications);
+  // 搜索框（带防抖）
+  let searchTimer = null;
+  const searchInput = document.getElementById("searchInput");
+  searchInput.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(renderApplications, 150);
+  });
+  document.getElementById("searchClearBtn").addEventListener("click", () => {
+    searchInput.value = "";
+    renderApplications();
+    searchInput.focus();
+  });
   document.getElementById("statusFilter").addEventListener("change", renderApplications);
   document.getElementById("sortFilter").addEventListener("change", renderApplications);
 

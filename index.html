@@ -110,7 +110,64 @@
   </div>
 </div>
 
-<!-- 未配置 Supabase 时的提示界面 -->
+<!-- 用户卡下拉菜单 -->
+<div class="user-menu" id="userMenu" style="display:none">
+  <div class="user-menu-header">
+    <div class="avatar avatar-lg" id="userMenuAvatar">U</div>
+    <div>
+      <div class="user-menu-email" id="userMenuEmail">未登录</div>
+      <div class="user-menu-plan">免费版</div>
+    </div>
+  </div>
+  <div class="user-menu-divider"></div>
+  <button class="user-menu-item" id="changePasswordBtn">
+    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+    <span>修改密码</span>
+  </button>
+  <button class="user-menu-item" id="exportDataMenuItem">
+    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+    <span>导出数据</span>
+  </button>
+  <div class="user-menu-divider"></div>
+  <button class="user-menu-item danger" id="deleteAccountBtn">
+    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+    <span>注销账户</span>
+  </button>
+  <div class="user-menu-divider"></div>
+  <button class="user-menu-item" id="logoutMenuItem">
+    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+    <span>退出登录</span>
+  </button>
+</div>
+
+<!-- 修改密码模态框 -->
+<div class="modal-backdrop" id="changePasswordModal">
+  <div class="modal modal-sm">
+    <div class="modal-head">
+      <div>
+        <p class="eyebrow">ACCOUNT</p>
+        <h3>修改密码</h3>
+      </div>
+      <button class="close-btn" data-close="changePasswordModal">×</button>
+    </div>
+    <form id="changePasswordForm">
+      <label class="field full">
+        <span>新密码 *</span>
+        <input type="password" id="newPasswordInput" required minlength="6" placeholder="至少 6 位" />
+      </label>
+      <label class="field full">
+        <span>确认密码 *</span>
+        <input type="password" id="confirmPasswordInput" required minlength="6" placeholder="再次输入新密码" />
+      </label>
+      <div class="auth-error" id="changePwdError"></div>
+      <div class="auth-success" id="changePwdSuccess"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" data-close="changePasswordModal">取消</button>
+        <button type="submit" class="btn primary">确认修改</button>
+      </div>
+    </form>
+  </div>
+</div>
 <div class="config-screen" id="configScreen" style="display:none">
   <div class="auth-card">
     <div class="auth-head">
@@ -153,11 +210,17 @@
       </button>
     </nav>
 
-    <div class="storage-card">
-      <div class="storage-title">云端账户</div>
-      <div class="storage-status"><span class="dot"></span> Supabase 已连接</div>
-      <p id="authUserEmail">未登录</p>
-      <button class="btn secondary logout-btn" id="logoutBtn">退出登录</button>
+    <div class="user-card" id="userCard">
+      <div class="user-card-inner">
+        <div class="avatar" id="userAvatar">U</div>
+        <div class="user-info">
+          <span class="user-email" id="authUserEmail">未登录</span>
+          <span class="user-plan">免费版</span>
+        </div>
+        <button class="user-card-menu-btn" id="userCardMenuBtn" aria-label="账户设置">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+        </button>
+      </div>
     </div>
   </aside>
 
@@ -178,7 +241,11 @@
       <section class="stats-grid" id="statsGrid"></section>
 
       <section class="panel toolbar">
-        <input class="input search" id="searchInput" placeholder="搜索公司、职位或备注…" />
+        <div class="search-box">
+          <input class="input search" id="searchInput" placeholder="搜索公司、职位或备注…" />
+          <button class="search-clear" id="searchClearBtn" style="display:none" aria-label="清除搜索">×</button>
+        </div>
+        <div class="search-result-count" id="searchResultCount"></div>
         <select class="input" id="statusFilter">
           <option value="全部">全部状态</option>
         </select>

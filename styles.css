@@ -106,40 +106,221 @@ button { cursor: pointer; }
   background: rgba(255,255,255,.09);
 }
 
-.storage-card {
+/* 用户卡 */
+.user-card {
   margin-top: auto;
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(255,255,255,.045);
-  border-radius: 15px;
-  padding: 15px;
-  color: #C9C1BA;
 }
 
-.storage-title {
-  color: #fff;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
-
-.storage-status {
+.user-card-inner {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 12px;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background .15s;
+  border: 1px solid rgba(255,255,255,.08);
 }
 
-.dot {
-  width: 8px;
-  height: 8px;
+.user-card-inner:hover {
+  background: rgba(255,255,255,.06);
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: #75C49A;
-  box-shadow: 0 0 0 4px rgba(117,196,154,.12);
+  background: linear-gradient(135deg, #1E5FB8, #4A90D9);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
 }
 
-.storage-card p {
-  margin: 10px 0 0;
+.avatar-lg {
+  width: 48px;
+  height: 48px;
+  font-size: 18px;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.user-email {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-plan {
   font-size: 11px;
-  line-height: 1.55;
+  color: rgba(255,255,255,.5);
+  margin-top: 2px;
+}
+
+.user-card-menu-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.5);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: color .15s, background .15s;
+}
+
+.user-card-menu-btn:hover {
+  color: #fff;
+  background: rgba(255,255,255,.1);
+}
+
+/* 用户下拉菜单 */
+.user-menu {
+  position: absolute;
+  bottom: 80px;
+  left: 16px;
+  right: 16px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.user-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, #1E5FB8 0%, #4A90D9 100%);
+  color: #fff;
+}
+
+.user-menu-email {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.user-menu-plan {
+  font-size: 12px;
+  opacity: .85;
+  margin-top: 2px;
+}
+
+.user-menu-divider {
+  height: 1px;
+  background: #f0f0f0;
+}
+
+.user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+  text-align: left;
+  transition: background .15s;
+}
+
+.user-menu-item:hover {
+  background: #f5f5f5;
+}
+
+.user-menu-item.danger {
+  color: #c0392b;
+}
+
+.user-menu-item.danger:hover {
+  background: #fdecea;
+}
+
+/* 修改密码成功/错误提示 */
+.auth-success {
+  display: none;
+  background: #e8f5e9;
+  color: #2e7d32;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.auth-success.show {
+  display: block;
+}
+
+/* 搜索框容器样式增强 */
+.search-box {
+  position: relative;
+  flex: 1;
+  max-width: 340px;
+}
+
+.search-box input {
+  width: 100%;
+}
+
+.search-box input:focus {
+  border-color: #1E5FB8;
+  box-shadow: 0 0 0 3px rgba(30, 95, 184, 0.12);
+}
+
+.search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: #e0e0e0;
+  color: #666;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s, color .15s;
+}
+
+.search-clear:hover {
+  background: #ccc;
+  color: #333;
+}
+
+.search-result-count {
+  font-size: 13px;
+  color: #888;
+  margin-right: auto;
+  padding: 0 12px;
+}
+
+/* 侧边栏退出登录按钮（保留兼容） */
+.logout-btn {
+  margin-top: 12px;
+  width: 100%;
+  padding: 8px 0;
+}
+
+.logout-btn:hover {
+  background: rgba(180,78,78,.25);
+  border-color: rgba(180,78,78,.4);
 }
 
 .main {
@@ -857,7 +1038,7 @@ body.compact .cards-list { gap: 8px; }
     width: auto;
     white-space: nowrap;
   }
-  .storage-card { display: none; }
+  .user-card { display: none; }
   .main { padding: 24px 18px 40px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .settings-grid { grid-template-columns: 1fr; }
