@@ -1273,7 +1273,26 @@ async function init() {
 
   // 5. 注册 Service Worker（仅用于静态资源缓存）
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
-    navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+    navigator.serviceWorker.register("./service-worker.js").then(reg => {
+      // 检测到新版本时自动提示刷新
+      reg.addEventListener("updatefound", () => {
+        const newSW = reg.installing;
+        newSW.addEventListener("statechange", () => {
+          if (newSW.state === "installed" && navigator.serviceWorker.controller) {
+            showToast("检测到新版本，刷新页面即可使用最新版本。");
+          }
+        });
+      });
+    }).catch(() => {});
+
+    // 如果 SW 控制的页面被强制刷新，说明有新版本
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
+    });
   }
 }
 
