@@ -64,8 +64,8 @@ button { cursor: pointer; }
 }
 
 .brand-logo {
-  width: 56px;
-  height: 56px;
+  width: 70px;
+  height: 70px;
   display: block;
   filter: drop-shadow(0 2px 6px rgba(30, 95, 184, 0.25));
 }
@@ -918,8 +918,8 @@ body.compact .cards-list { gap: 8px; }
 }
 
 .auth-head .brand-logo {
-  width: 80px;
-  height: 80px;
+  width: 100px;
+  height: 100px;
 }
 
 .auth-head h2 {
