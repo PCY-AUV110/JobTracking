@@ -1,4 +1,4 @@
-const CACHE_NAME = "offerflow-v9-user-search";
+const CACHE_NAME = "offerflow-v10-ai-parse";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./supabase-config.js", "./manifest.json", "./logo.svg"];
 
 self.addEventListener("install", event => {

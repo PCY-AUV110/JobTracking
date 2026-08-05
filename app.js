@@ -1230,8 +1230,12 @@ function friendlyAIError(err) {
 
 // 绑定 AI 面板的所有事件
 function initAIPanel() {
+  // 如果 AI 面板元素不存在（例如 HTML 版本不匹配），跳过初始化
+  const head = document.getElementById("aiPanelHead");
+  if (!head) return;
+
   // 折叠头点击
-  document.getElementById("aiPanelHead").addEventListener("click", toggleAIPanel);
+  head.addEventListener("click", toggleAIPanel);
 
   // Tab 切换
   document.querySelectorAll(".ai-tab").forEach(tab => {
@@ -1241,6 +1245,7 @@ function initAIPanel() {
   // 拖拽上传区
   const dropzone = document.getElementById("aiDropzone");
   const fileInput = document.getElementById("aiFileInput");
+  if (!dropzone || !fileInput) return;
 
   // 点击/键盘触发文件选择
   dropzone.addEventListener("click", () => fileInput.click());
@@ -1277,11 +1282,16 @@ function initAIPanel() {
   });
 
   // 邮件文本框输入时启用/禁用按钮
-  document.getElementById("aiEmailText").addEventListener("input", setAIParseBtnState);
+  const emailText = document.getElementById("aiEmailText");
+  if (emailText) {
+    emailText.addEventListener("input", setAIParseBtnState);
+  }
 
   // 解析按钮
-  document.getElementById("aiParseScreenshotBtn").addEventListener("click", parseScreenshot);
-  document.getElementById("aiParseEmailBtn").addEventListener("click", parseEmail);
+  const screenshotBtn = document.getElementById("aiParseScreenshotBtn");
+  const emailBtn = document.getElementById("aiParseEmailBtn");
+  if (screenshotBtn) screenshotBtn.addEventListener("click", parseScreenshot);
+  if (emailBtn) emailBtn.addEventListener("click", parseEmail);
 }
 
 function resetApplicationForm() {
@@ -1440,7 +1450,12 @@ function bindEvents() {
   eventsBound = true;
 
   // ---- AI 智能识别面板 ----
-  initAIPanel();
+  // 容错：即使 AI 面板初始化失败，也不影响后续登录等核心功能
+  try {
+    initAIPanel();
+  } catch (e) {
+    console.warn("[AI Panel] 初始化失败（可忽略）:", e.message);
+  }
 
   // ---- 认证相关 ----
   document.querySelectorAll(".auth-tab").forEach(tab => {
