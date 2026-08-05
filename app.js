@@ -1,5 +1,5 @@
 // ============================================================
-// JobTrack 应用主逻辑（Supabase 云端版本）
+// OfferFlow 应用主逻辑（Supabase 云端版本）
 // ============================================================
 
 // ---- Supabase 表名常量 ----
@@ -884,7 +884,7 @@ function editInterview(id) {
 
 async function exportData() {
   const payload = {
-    app: "JobTrack",
+    app: "OfferFlow",
     version: 2,
     exportedAt: new Date().toISOString(),
     user: currentUser?.email || null,

@@ -1,9 +1,9 @@
 {
-  "name": "JobTrack 求职申请管理",
-  "short_name": "JobTrack",
+  "name": "OfferFlow · 求职申请管理",
+  "short_name": "OfferFlow",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#F7F4EE",
-  "theme_color": "#D97757",
-  "description": "本地优先的求职申请管理系统"
+  "theme_color": "#1E5FB8",
+  "description": "OfferFlow — Track. Manage. Land Your Offer."
 }

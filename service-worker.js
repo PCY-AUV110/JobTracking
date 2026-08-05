@@ -1,5 +1,5 @@
-const CACHE_NAME = "jobtrack-v3-auth-ux";
-const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./supabase-config.js", "./manifest.json"];
+const CACHE_NAME = "offerflow-v1-brand";
+const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./supabase-config.js", "./manifest.json", "./logo.svg"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));

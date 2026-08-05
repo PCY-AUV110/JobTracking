@@ -1,17 +1,17 @@
 :root {
-  --claude-orange: #D97757;
-  --claude-orange-dark: #B85F43;
+  --claude-orange: #1E5FB8;
+  --claude-orange-dark: #164A8F;
   --claude-cream: #F7F4EE;
   --claude-paper: #FCFBF8;
   --claude-ink: #2C2926;
   --claude-muted: #77716B;
   --claude-line: #E6DED5;
-  --claude-soft: #F0E7DE;
+  --claude-soft: #E8EEF5;
   --green: #4F806B;
   --amber: #B7791F;
   --red: #B44E4E;
-  --blue: #58789A;
-  --shadow: 0 18px 50px rgba(72, 54, 43, 0.08);
+  --blue: #3B8CE8;
+  --shadow: 0 18px 50px rgba(30, 95, 184, 0.08);
   --radius-lg: 20px;
   --radius-md: 14px;
 }
@@ -58,15 +58,16 @@ button { cursor: pointer; }
   padding: 0 8px 28px;
 }
 
-.brand-mark {
-  width: 44px;
-  height: 44px;
+.brand-logo-wrap {
   display: grid;
   place-items: center;
-  border-radius: 14px;
-  background: var(--claude-orange);
-  font-weight: 800;
-  letter-spacing: .04em;
+}
+
+.brand-logo {
+  width: 44px;
+  height: 44px;
+  display: block;
+  filter: drop-shadow(0 2px 6px rgba(30, 95, 184, 0.25));
 }
 
 .brand h1 {
@@ -643,7 +644,7 @@ button { cursor: pointer; }
   max-width: 52px;
   min-height: 4px;
   border-radius: 8px 8px 3px 3px;
-  background: linear-gradient(180deg, #E49B80, var(--claude-orange));
+  background: linear-gradient(180deg, #5BA8F5, var(--claude-orange));
 }
 
 .trend-label {
@@ -912,11 +913,13 @@ body.compact .cards-list { gap: 8px; }
   margin-bottom: 24px;
 }
 
-.auth-head .brand-mark {
+.auth-head .brand-logo-wrap {
   margin: 0 auto 14px;
-  width: 52px;
-  height: 52px;
-  font-size: 18px;
+}
+
+.auth-head .brand-logo {
+  width: 56px;
+  height: 56px;
 }
 
 .auth-head h2 {
