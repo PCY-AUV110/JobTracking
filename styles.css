@@ -629,6 +629,7 @@ button { cursor: pointer; }
   display: flex;
   align-items: flex-start;
   gap: 20px;
+  flex-wrap: nowrap;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -641,8 +642,8 @@ button { cursor: pointer; }
 .company-block {
   display: flex;
   gap: 13px;
-  min-width: 0;
-  flex: 1;
+  flex: 0 0 340px;
+  width: 340px;
   align-items: flex-start;
 }
 
@@ -671,6 +672,7 @@ button { cursor: pointer; }
   font-size: 15px;
   line-height: 1.4;
   word-break: break-word;
+  max-width: 40ch;
 }
 
 .application-meta,
@@ -1439,6 +1441,10 @@ body.compact .cards-list { gap: 8px; }
   }
   .application-card {
     flex-wrap: wrap;
+  }
+  .company-block {
+    flex: 0 0 100%;
+    width: 100%;
   }
   .col-status,
   .col-date {
