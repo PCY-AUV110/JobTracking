@@ -1870,6 +1870,38 @@ async function init() {
       }
     });
   }
+
+  initCursorGlow();
+}
+
+// ---- Liquid Glass 光标反光交互 ----
+function initCursorGlow() {
+  let rafId = null;
+  let pendingX = 50, pendingY = 50;
+
+  function update() {
+    document.documentElement.style.setProperty('--cursor-x', pendingX + '%');
+    document.documentElement.style.setProperty('--cursor-y', pendingY + '%');
+    rafId = null;
+  }
+
+  window.addEventListener('mousemove', (e) => {
+    pendingX = (e.clientX / window.innerWidth) * 100;
+    pendingY = (e.clientY / window.innerHeight) * 100;
+    if (!rafId) rafId = requestAnimationFrame(update);
+  }, { passive: true });
+
+  // 卡片级别的精细反光
+  const glassSelector = '.stat-card, .panel, .application-card, .sidebar, .btn, .user-card-inner, .user-menu, .segmented-tabs';
+  document.addEventListener('mousemove', (e) => {
+    const el = e.target.closest(glassSelector);
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    el.style.setProperty('--cursor-x', x + '%');
+    el.style.setProperty('--cursor-y', y + '%');
+  }, { passive: true });
 }
 
 init();
