@@ -1129,20 +1129,20 @@ function showAIMessage(type, text) {
   msgEl.className = `ai-message ${type}`;
 }
 
-// 调用 parse-screenshot 边缘函数
+// 调用截图解析边缘函数
 async function parseScreenshot() {
   if (!aiSelectedImage) return;
-  await callAIFunction("parse-screenshot", {
+  await callAIFunction("rapid-service", {
     image: aiSelectedImage.base64,
     mime: aiSelectedImage.mime
   });
 }
 
-// 调用 parse-text 边缘函数
+// 调用邮件解析边缘函数
 async function parseEmail() {
   const text = document.getElementById("aiEmailText").value.trim();
   if (!text) return;
-  await callAIFunction("parse-text", { text });
+  await callAIFunction("super-function", { text });
 }
 
 // 通用调用：请求边缘函数并填充表单
@@ -1217,7 +1217,7 @@ function countFilledFields(result) {
 function friendlyAIError(err) {
   const msg = err.message || String(err);
   if (/404|Not Found/i.test(msg)) {
-    return "AI 服务未部署。请前往 Supabase Dashboard → Edge Functions 部署 parse-screenshot 和 parse-text 函数。";
+    return "AI 服务未部署。请确认 Edge Functions rapid-service 和 super-function 已正确部署。";
   }
   if (/Failed to fetch|NetworkError|load failed/i.test(msg)) {
     return "网络连接失败，请检查网络或稍后再试。";
