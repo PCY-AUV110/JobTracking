@@ -696,16 +696,19 @@ button { cursor: pointer; }
   gap: 6px;
 }
 
-.col-status,
+.col-status {
+  width: 110px;
+  flex-shrink: 0;
+}
+
 .col-date {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-self: flex-start;
+  width: 150px;
+  flex-shrink: 0;
 }
 
 .col-status .status-select {
   min-height: 38px;
+  width: 100%;
 }
 
 .col-date .date-value {
