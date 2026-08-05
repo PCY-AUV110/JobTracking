@@ -795,17 +795,17 @@ function renderApplications() {
         </div>
       </div>
 
-      <div>
+      <div class="col-status">
         <div class="label">当前状态</div>
         <select class="status-select" data-status-id="${item.id}">
           ${STATUSES.map(status => `<option ${status === item.status ? "selected" : ""}>${status}</option>`).join("")}
         </select>
       </div>
 
-      <div>
+      <div class="col-date">
         <div class="label">申请日期</div>
-        <div>${formatDate(item.appliedDate)}</div>
-        <div class="small-muted" style="margin-top:6px">${escapeHtml(item.source || "渠道未填写")}</div>
+        <div class="date-value">${formatDate(item.appliedDate)}</div>
+        <div class="small-muted">${escapeHtml(item.source || "渠道未填写")}</div>
       </div>
 
       <div class="card-actions">

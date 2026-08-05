@@ -695,12 +695,35 @@ button { cursor: pointer; }
   gap: 6px;
 }
 
+.col-status,
+.col-date {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: flex-start;
+}
+
+.col-status .status-select {
+  min-height: 38px;
+}
+
+.col-date .date-value {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.col-date .small-muted {
+  line-height: 1.4;
+}
+
 .label {
   color: var(--muted);
   font-size: 11px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  line-height: 1;
 }
 
 .status-select {
