@@ -6,7 +6,7 @@
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
-const corsHeaders = {
+export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",

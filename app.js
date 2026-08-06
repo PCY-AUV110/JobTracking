@@ -1176,6 +1176,7 @@ async function callAIFunction(name, body) {
 
 // 将 AI 返回的字段填充到表单
 function applyAIResult(result) {
+  if (!result || typeof result !== "object") return;
   const mapping = {
     company: "companyInput",
     role: "roleInput",
@@ -1189,14 +1190,13 @@ function applyAIResult(result) {
     const value = result[key];
     if (value && typeof value === "string" && value.trim()) {
       const el = document.getElementById(elId);
+      if (!el) return;
       // 仅在字段为空时覆盖，避免覆盖用户已编辑的内容
-      if (el && !el.value.trim()) {
+      if (!el.value.trim()) {
         el.value = value.trim();
-      } else if (el) {
-        // 已有值时，对 notes 采用追加策略
-        if (key === "notes" && el.value && !el.value.includes(value.trim())) {
-          el.value = el.value + "\n" + value.trim();
-        }
+      } else if (key === "notes" && !el.value.includes(value.trim())) {
+        // notes 采用追加策略
+        el.value = el.value + "\n" + value.trim();
       }
     }
   });
@@ -1209,6 +1209,7 @@ function applyAIResult(result) {
 
 // 统计 AI 识别到多少个有效字段
 function countFilledFields(result) {
+  if (!result || typeof result !== "object") return 0;
   const keys = ["company", "role", "location", "source", "jobUrl", "notes", "status"];
   return keys.filter(k => result[k] && String(result[k]).trim()).length;
 }
@@ -1244,6 +1245,18 @@ function initAIPanel() {
   document.querySelectorAll(".ai-tab").forEach(tab => {
     tab.addEventListener("click", () => switchAITab(tab.dataset.aiTab));
   });
+
+  // 邮件文本框输入时启用/禁用按钮
+  const emailText = document.getElementById("aiEmailText");
+  if (emailText) {
+    emailText.addEventListener("input", setAIParseBtnState);
+  }
+
+  // 解析按钮
+  const screenshotBtn = document.getElementById("aiParseScreenshotBtn");
+  const emailBtn = document.getElementById("aiParseEmailBtn");
+  if (screenshotBtn) screenshotBtn.addEventListener("click", parseScreenshot);
+  if (emailBtn) emailBtn.addEventListener("click", parseEmail);
 
   // 拖拽上传区
   const dropzone = document.getElementById("aiDropzone");
@@ -1283,18 +1296,6 @@ function initAIPanel() {
       handleAIFileSelect(e.dataTransfer.files[0]);
     }
   });
-
-  // 邮件文本框输入时启用/禁用按钮
-  const emailText = document.getElementById("aiEmailText");
-  if (emailText) {
-    emailText.addEventListener("input", setAIParseBtnState);
-  }
-
-  // 解析按钮
-  const screenshotBtn = document.getElementById("aiParseScreenshotBtn");
-  const emailBtn = document.getElementById("aiParseEmailBtn");
-  if (screenshotBtn) screenshotBtn.addEventListener("click", parseScreenshot);
-  if (emailBtn) emailBtn.addEventListener("click", parseEmail);
 }
 
 function resetApplicationForm() {

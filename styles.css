@@ -648,6 +648,7 @@ button { cursor: pointer; }
   gap: 13px;
   flex: 0 0 340px;
   width: 340px;
+  flex-shrink: 0;
   align-items: flex-start;
 }
 
@@ -661,6 +662,7 @@ button { cursor: pointer; }
   background: linear-gradient(135deg, rgba(30, 95, 184, 0.12), rgba(74, 144, 217, 0.18));
   color: var(--accent-dark);
   font-weight: 700;
+  flex-shrink: 0;
 }
 
 .company-block > div:last-child {
@@ -752,6 +754,7 @@ button { cursor: pointer; }
   display: flex;
   gap: 7px;
   align-self: center;
+  flex-shrink: 0;
 }
 
 .icon-btn {
