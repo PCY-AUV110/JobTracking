@@ -1009,6 +1009,8 @@ function resetAIPanel() {
   if (dropzone) dropzone.classList.remove("has-preview", "dragover");
   const emailText = document.getElementById("aiEmailText");
   if (emailText) emailText.value = "";
+  const linkInput = document.getElementById("aiLinkInput");
+  if (linkInput) linkInput.value = "";
   setAIParseBtnState();
   setAILoading(false);
   showAIMessage(null);
@@ -1101,18 +1103,22 @@ function compressImage(file, maxEdge, quality) {
 function setAIParseBtnState() {
   const screenshotBtn = document.getElementById("aiParseScreenshotBtn");
   const emailBtn = document.getElementById("aiParseEmailBtn");
-  screenshotBtn.disabled = !aiSelectedImage;
-  const emailText = document.getElementById("aiEmailText").value.trim();
-  emailBtn.disabled = emailText.length === 0;
+  const linkBtn = document.getElementById("aiParseLinkBtn");
+  if (screenshotBtn) screenshotBtn.disabled = !aiSelectedImage;
+  const emailText = document.getElementById("aiEmailText");
+  if (emailBtn) emailBtn.disabled = !(emailText && emailText.value.trim().length > 0);
+  const linkInput = document.getElementById("aiLinkInput");
+  if (linkBtn) linkBtn.disabled = !(linkInput && /^https?:\/\/.+/.test(linkInput.value.trim()));
 }
 
 // 设置加载状态
 function setAILoading(loading) {
   const loadingEl = document.getElementById("aiLoading");
-  loadingEl.hidden = !loading;
+  if (loadingEl) loadingEl.hidden = !loading;
   // 禁用解析按钮，防止重复点击
-  document.getElementById("aiParseScreenshotBtn").classList.toggle("loading", loading);
-  document.getElementById("aiParseEmailBtn").classList.toggle("loading", loading);
+  document.getElementById("aiParseScreenshotBtn")?.classList.toggle("loading", loading);
+  document.getElementById("aiParseEmailBtn")?.classList.toggle("loading", loading);
+  document.getElementById("aiParseLinkBtn")?.classList.toggle("loading", loading);
 }
 
 // 显示 AI 提示信息（type: null | "error" | "success"）
@@ -1143,6 +1149,13 @@ async function parseEmail() {
   const text = document.getElementById("aiEmailText").value.trim();
   if (!text) return;
   await callAIFunction("super-function", { text });
+}
+
+// 调用链接解析边缘函数
+async function parseLink() {
+  const url = document.getElementById("aiLinkInput").value.trim();
+  if (!url || !/^https?:\/\//.test(url)) return;
+  await callAIFunction("parse-link", { url });
 }
 
 // 通用调用：请求边缘函数并填充表单
@@ -1218,7 +1231,7 @@ function countFilledFields(result) {
 function friendlyAIError(err) {
   const msg = err.message || String(err);
   if (/404|Not Found/i.test(msg)) {
-    return "AI 服务未部署。请确认 Edge Functions rapid-service 和 super-function 已正确部署。";
+    return "AI 服务未部署。请确认 Edge Functions rapid-service、super-function、parse-link 已正确部署。";
   }
   if (/Failed to fetch|NetworkError|load failed/i.test(msg)) {
     return "网络连接失败，请检查网络或稍后再试。";
@@ -1252,11 +1265,27 @@ function initAIPanel() {
     emailText.addEventListener("input", setAIParseBtnState);
   }
 
+  // 链接输入框输入时启用/禁用按钮
+  const linkInput = document.getElementById("aiLinkInput");
+  if (linkInput) {
+    linkInput.addEventListener("input", setAIParseBtnState);
+    // 回车键提交
+    linkInput.addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const btn = document.getElementById("aiParseLinkBtn");
+        if (btn && !btn.disabled) parseLink();
+      }
+    });
+  }
+
   // 解析按钮
   const screenshotBtn = document.getElementById("aiParseScreenshotBtn");
   const emailBtn = document.getElementById("aiParseEmailBtn");
+  const linkBtn = document.getElementById("aiParseLinkBtn");
   if (screenshotBtn) screenshotBtn.addEventListener("click", parseScreenshot);
   if (emailBtn) emailBtn.addEventListener("click", parseEmail);
+  if (linkBtn) linkBtn.addEventListener("click", parseLink);
 
   // 拖拽上传区
   const dropzone = document.getElementById("aiDropzone");

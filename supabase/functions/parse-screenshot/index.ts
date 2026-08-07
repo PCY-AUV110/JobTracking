@@ -13,7 +13,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-Deno.serve(async (req) => {
+declare const Deno: any;
+Deno.serve(async (req: Request) => {
   // 处理 CORS 预检
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -109,7 +110,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     return new Response(
-      JSON.stringify({ error: err.message || "解析失败" }),
+      JSON.stringify({ error: err instanceof Error ? err.message : "解析失败" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
