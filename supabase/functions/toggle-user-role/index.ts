@@ -1,12 +1,13 @@
-/// <reference lib="deno.ns" />
 // ============================================================
 // Edge Function: toggle-user-role
 // 功能：将指定用户的角色设置为 user 或 admin
 // 权限：仅 super_admin 可调用
 // 部署后通过 service_role key 绕过 RLS 写 profiles.role
+// 类型：deno.json 已在项目根目录配置 Deno 类型
 // ============================================================
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// @ts-ignore - Supabase Edge Functions 使用 Deno 运行时，esm.sh 模块在 TS 中无法解析
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -26,6 +27,7 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// @ts-ignore - Supabase Edge Functions 运行时支持 Deno.serve，但类型定义可能缺失
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });

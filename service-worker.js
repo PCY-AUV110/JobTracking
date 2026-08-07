@@ -1,4 +1,4 @@
-const CACHE_NAME = "offerflow-v22-admin-fix";
+const CACHE_NAME = "offerflow-v34-hide-demo-data";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./admin.js", "./supabase-config.js", "./manifest.json", "./logo.svg"];
 
 self.addEventListener("install", event => {

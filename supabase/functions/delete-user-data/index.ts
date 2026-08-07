@@ -1,4 +1,3 @@
-/// <reference lib="deno.ns" />
 // ============================================================
 // Edge Function: delete-user-data
 // 功能：清除指定用户的所有数据
@@ -6,9 +5,11 @@
 //   - mode: "account" 删除业务数据并注销 auth.users（账户级联删除 profile）
 // 权限：仅 super_admin 可调用
 // 警告：此操作不可逆，前端必须二次确认
+// 类型：deno.json 已在项目根目录配置 Deno 类型
 // ============================================================
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// @ts-ignore - Supabase Edge Functions 使用 Deno 运行时，esm.sh 模块在 TS 中无法解析
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -28,7 +29,7 @@ function json(body: unknown, status = 200) {
   });
 }
 
-Deno.serve(async (req: Request) => {
+(Deno as any).serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

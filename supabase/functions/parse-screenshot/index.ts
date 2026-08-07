@@ -2,6 +2,7 @@
 // Edge Function: parse-screenshot
 // 功能：接收 base64 截图，调用 OpenAI Vision API 提取求职信息
 // 部署后需设置 secret: OPENAI_API_KEY
+// 类型：deno.json 已在项目根目录配置 Deno 类型
 // ============================================================
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
@@ -13,8 +14,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-declare const Deno: any;
-Deno.serve(async (req: Request) => {
+// @ts-ignore - Deno.serve 在 Supabase Edge Functions 运行时可用
+(Deno as any).serve(async (req: Request) => {
   // 处理 CORS 预检
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -115,3 +116,5 @@ Deno.serve(async (req: Request) => {
     );
   }
 });
+
+export {};

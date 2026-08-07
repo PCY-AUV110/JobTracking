@@ -1,11 +1,9 @@
 // ============================================================
 // parse-link: 抓取职位链接页面，用 AI 提取求职信息
 // 用户在「添加申请」中粘贴招聘网页 URL，自动填充表单
+// 类型：deno.json 已在项目根目录配置 Deno 类型
 // ============================================================
 
-declare const Deno: {
-  env: { get(key: string): string | undefined };
-};
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
 const corsHeaders = {
@@ -184,3 +182,5 @@ function extractText(html: string): string {
     );
   }
 });
+
+export {};

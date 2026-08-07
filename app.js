@@ -273,6 +273,9 @@ function showAuthScreen() {
 }
 
 function showAppShell() {
+  // 如果管理员控制台已打开，不要重置 appShell 显示状态
+  const adminShell = document.getElementById("adminShell");
+  if (adminShell && adminShell.style.display !== "none") return;
   document.getElementById("authScreen").style.display = "none";
   document.getElementById("configScreen").style.display = "none";
   document.getElementById("appShell").style.display = "grid";

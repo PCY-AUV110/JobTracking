@@ -1,4 +1,3 @@
-/// <reference lib="deno.ns" />
 // ============================================================
 // Edge Function: init-super-admin
 // 功能：首次部署时将指定邮箱提升为 super_admin（一次性引导）
@@ -6,9 +5,11 @@
 //   - 公开可调用，但仅当系统中尚不存在任何 super_admin 时才生效
 //   - 一旦存在 super_admin，本函数永久拒绝执行（自毁语义）
 //   - 部署完成后建议在 Supabase Dashboard 中删除该 Function
+// 类型：deno.json 已在项目根目录配置 Deno 类型
 // ============================================================
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// @ts-ignore - Supabase Edge Functions 使用 Deno 运行时，esm.sh 模块在 TS 中无法解析
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -27,7 +28,8 @@ function json(body: unknown, status = 200) {
   });
 }
 
-Deno.serve(async (req: Request) => {
+// @ts-ignore - Deno.serve 在 Supabase Edge Functions 运行时可用
+(Deno as any).serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

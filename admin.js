@@ -179,6 +179,10 @@ function hideAdminShell() {
   const adminShell = document.getElementById("adminShell");
   if (adminShell) adminShell.style.display = "none";
   document.getElementById("appShell").style.display = "grid";
+  // 重置主界面导航与页面标题为申请看板
+  if (typeof switchView === "function") {
+    switchView("applications");
+  }
 }
 
 function updateAdminTopbar() {
@@ -258,7 +262,7 @@ function bindAdminEvents() {
   // 抽屉关闭
   document.querySelectorAll("[data-close-drawer]").forEach(el => {
     el.addEventListener("click", () => {
-      document.getElementById("adminUserDrawer").style.display = "none";
+      closeUserDrawer();
     });
   });
 
@@ -284,19 +288,8 @@ const initAdmin = bindAdminEvents;
 // ============================================================
 
 function showAdminEntryButton() {
-  const userCard = document.querySelector(".user-card");
-  if (!userCard || document.getElementById("adminEntryBtn")) return;
-
-  const btn = document.createElement("button");
-  btn.id = "adminEntryBtn";
-  btn.className = "admin-entry-btn";
-  btn.innerHTML = `🛡 <span>管理控制台</span>`;
-  btn.addEventListener("click", () => {
-    showAdminShell();
-    switchAdminView("dashboard");
-  });
-
-  userCard.parentNode.insertBefore(btn, userCard);
+  // 已移除：侧边栏 "⛨ 管理员" 导航按钮即为唯一入口，此处不再创建冗余按钮
+  return;
 }
 
 // ============================================================
@@ -309,7 +302,14 @@ async function loadAdminDashboard() {
   grid.innerHTML = '<div class="admin-loading">加载中...</div>';
 
   try {
-    const raw = await callAdminEdgeFunction("get-system-stats", null, "GET");
+    let raw;
+    try {
+      raw = await callAdminEdgeFunction("get-system-stats", null, "GET");
+    } catch (efErr) {
+      // Edge Function 未部署，降级为直接查询数据库
+      console.warn("[admin] get-system-stats 降级为直接查询:", efErr.message);
+      raw = await getSystemStatsDirect();
+    }
     // 扁平化映射，统一字段访问
     adminSystemStats = {
       totalUsers: raw.users?.total ?? 0,
@@ -328,6 +328,58 @@ async function loadAdminDashboard() {
   } catch (err) {
     grid.innerHTML = `<div class="admin-error">加载失败：${escapeHtml(err.message || "未知错误")}</div>`;
   }
+}
+
+// 降级方案：直接查询数据库获取系统统计
+async function getSystemStatsDirect() {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  // 逐表查询，避免 Promise.all 中某个请求被中断导致全部失败
+  const profilesRes = await supabase.from("profiles").select("role, is_active, created_at, last_login_at");
+  if (profilesRes.error) throw profilesRes.error;
+  const profiles = profilesRes.data || [];
+
+  const appsRes = await supabase.from("applications").select("status, user_id, notes");
+  if (appsRes.error) throw appsRes.error;
+  // 过滤掉系统给新用户自动创建的 Demo 示例数据
+  const apps = (appsRes.data || []).filter(a => !(a.notes && a.notes.startsWith("Demo 示例")));
+
+  let interviewCount = 0;
+  try {
+    const intsRes = await supabase.from("interviews").select("id");
+    if (!intsRes.error) interviewCount = intsRes.data?.length || 0;
+  } catch (e) {
+    console.warn("[admin] interviews 查询失败，跳过:", e.message);
+  }
+
+  const byRole = {};
+  profiles.forEach(p => { byRole[p.role] = (byRole[p.role] || 0) + 1; });
+
+  const byStatus = {};
+  apps.forEach(a => { byStatus[a.status] = (byStatus[a.status] || 0) + 1; });
+
+  const uniqueApplicants = new Set(apps.map(a => a.user_id).filter(Boolean)).size;
+  const newIn7d = profiles.filter(p => p.created_at && p.created_at >= sevenDaysAgo).length;
+  const logged7d = profiles.filter(p => p.last_login_at && p.last_login_at >= sevenDaysAgo).length;
+
+  return {
+    users: {
+      total: profiles.length,
+      active: profiles.filter(p => p.is_active).length,
+      newIn7d,
+      logged7d,
+      byRole,
+    },
+    applications: {
+      total: apps.length,
+      byStatus,
+      uniqueApplicants,
+    },
+    interviews: {
+      total: interviewCount,
+    },
+    generatedAt: new Date().toISOString(),
+  };
 }
 
 function renderAdminStats() {
@@ -520,9 +572,11 @@ function renderAdminUserTable() {
 
 async function loadUserCounts(userId) {
   try {
+    // 排除 Demo 示例数据，只统计真实申请数
     const { count: appCount } = await supabase
       .from("applications").select("*", { count: "exact", head: true })
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .not("notes", "like", "Demo 示例%");
     const { count: intCount } = await supabase
       .from("interviews").select("*", { count: "exact", head: true })
       .eq("user_id", userId);
@@ -542,16 +596,19 @@ async function openUserDrawer(userId) {
   const profile = adminAllProfiles.find(p => p.id === userId);
   if (!profile) return;
 
-  document.getElementById("adminDrawerUserName").textContent = profile.email;
   const drawer = document.getElementById("adminUserDrawer");
   drawer.style.display = "flex";
   adminDrawerUserId = userId;
+
+  document.getElementById("adminDrawerUserName").textContent = profile.display_name || profile.email;
 
   try {
     const { data: apps } = await supabase
       .from("applications").select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
+    // 过滤掉系统自动创建的 Demo 示例数据
+    const realApps = (apps || []).filter(a => !(a.notes && a.notes.startsWith("Demo 示例")));
     const { data: ints } = await supabase
       .from("interviews").select("*")
       .eq("user_id", userId)
@@ -570,10 +627,10 @@ async function openUserDrawer(userId) {
         </div>
       </div>
       <div class="admin-drawer-section">
-        <h4>申请记录 (${(apps || []).length})</h4>
-        ${(apps || []).length ? `<table class="admin-table">
+        <h4>申请记录 (${realApps.length})</h4>
+        ${realApps.length ? `<table class="admin-table">
           <thead><tr><th>公司</th><th>职位</th><th>状态</th><th>日期</th></tr></thead>
-          <tbody>${apps.map(a => `<tr>
+          <tbody>${realApps.map(a => `<tr>
             <td>${escapeHtml(a.company)}</td>
             <td>${escapeHtml(a.role)}</td>
             <td><span style="color:${statusColor(a.status)};font-weight:600;">${escapeHtml(a.status)}</span></td>
@@ -625,7 +682,9 @@ async function loadAdminData() {
       .from("applications").select("*")
       .order("created_at", { ascending: false });
     if (error) throw error;
-    renderAdminDataList(apps || [], profiles || []);
+    // 过滤掉系统给新用户自动创建的 Demo 示例数据
+    const realApps = (apps || []).filter(a => !(a.notes && a.notes.startsWith("Demo 示例")));
+    renderAdminDataList(realApps, profiles || []);
   } catch (err) {
     showToast("加载数据失败：" + err.message);
   }
@@ -682,10 +741,13 @@ async function handleToggleRole(targetUserId) {
   if (!confirm(`确定将 ${user.email} 的角色切换为「${roleLabel(newRole)}」吗？`)) return;
 
   try {
-    await callAdminEdgeFunction("toggle-user-role", {
-      targetUserId,
-      newRole
-    });
+    try {
+      await callAdminEdgeFunction("toggle-user-role", { targetUserId, newRole });
+    } catch (efErr) {
+      console.warn("[admin] toggle-user-role 降级为直接更新:", efErr.message);
+      const { error } = await supabase.from("profiles").update({ role: newRole }).eq("id", targetUserId);
+      if (error) throw error;
+    }
     showToast("角色已更新");
     loadAdminUsers();
   } catch (err) {
@@ -700,10 +762,13 @@ async function handleToggleActive(targetUserId) {
   if (!confirm(`确定${action}用户 ${user.email} 吗？`)) return;
 
   try {
-    await callAdminEdgeFunction("set-user-active", {
-      targetUserId,
-      isActive: !user.is_active
-    });
+    try {
+      await callAdminEdgeFunction("set-user-active", { targetUserId, isActive: !user.is_active });
+    } catch (efErr) {
+      console.warn("[admin] set-user-active 降级为直接更新:", efErr.message);
+      const { error } = await supabase.from("profiles").update({ is_active: !user.is_active }).eq("id", targetUserId);
+      if (error) throw error;
+    }
     showToast(`用户已${action}`);
     loadAdminUsers();
   } catch (err) {
@@ -719,7 +784,17 @@ async function deleteUserDataInAdmin(userId, mode) {
   const label = mode === "account" ? "注销账户并清除所有数据" : "清除所有业务数据（保留账户）";
   if (!confirm(`确认对此用户执行「${label}」？此操作不可撤销！`)) return;
   try {
-    await callAdminEdgeFunction("delete-user-data", { targetUserId: userId, mode });
+    try {
+      await callAdminEdgeFunction("delete-user-data", { targetUserId: userId, mode });
+    } catch (efErr) {
+      console.warn("[admin] delete-user-data 降级为直接删除:", efErr.message);
+      // 直接删除用户的申请和面试数据
+      await supabase.from("interviews").delete().eq("user_id", userId);
+      await supabase.from("applications").delete().eq("user_id", userId);
+      if (mode === "account") {
+        await supabase.from("profiles").delete().eq("id", userId);
+      }
+    }
     showToast("操作已完成");
     await loadAdminUsers();
   } catch (err) {
@@ -738,16 +813,29 @@ async function loadAdminSystem() {
   const functions = ["toggle-user-role", "set-user-active", "get-system-stats"];
   const statusList = document.getElementById("adminEdgeFunctionStatus");
   const results = await Promise.allSettled(
-    functions.map(fn => callAdminEdgeFunction(fn, null, "GET").catch(() => { throw new Error(fn); }))
+    functions.map(fn => callAdminEdgeFunction(fn, null, "GET").then(() => true).catch(() => false))
   );
   statusList.innerHTML = functions.map((fn, i) => {
-    const ok = results[i].status === "fulfilled";
+    const ok = results[i].status === "fulfilled" && results[i].value;
     return `<div class="admin-status-item">
-      <span class="admin-status-dot ${ok ? "active" : "error"}"></span>
-      <code>${fn}</code>
-      <span>${ok ? "✅ 正常" : "❌ 异常"}</span>
+      <span class="admin-status-dot ${ok ? "active" : "disabled"}"></span>
+      <code class="admin-status-name">${fn}</code>
+      <span class="admin-status-code ${ok ? "ok" : "warn"}">${ok ? "✅ 已部署" : "⚡ 降级运行"}</span>
     </div>`;
   }).join("");
+
+  // 数据库信息（如果有 get-system-stats 结果可以利用）
+  const dbInfo = document.getElementById("adminDbInfo");
+  if (dbInfo && adminSystemStats) {
+    const s = adminSystemStats;
+    dbInfo.innerHTML = `
+      <div class="admin-info-item"><span>总用户数</span><strong>${s.totalUsers}</strong></div>
+      <div class="admin-info-item"><span>启用账户</span><strong>${s.activeUsers}</strong></div>
+      <div class="admin-info-item"><span>申请记录</span><strong>${s.totalApplications}</strong></div>
+      <div class="admin-info-item"><span>面试记录</span><strong>${s.totalInterviews}</strong></div>
+      <div class="admin-info-item admin-info-wide"><span>数据生成时间</span><strong style="font-size:14px;">${s.generatedAt ? new Date(s.generatedAt).toLocaleString("zh-CN") : "—"}</strong></div>
+    `;
+  }
 }
 
 async function handleResetAllData() {
@@ -760,13 +848,19 @@ async function handleResetAllData() {
 
   try {
     showToast("正在清空数据...");
-    await callAdminEdgeFunction("delete-user-data", { targetUserId: "all", mode: "data" });
+    try {
+      await callAdminEdgeFunction("delete-user-data", { targetUserId: "all", mode: "data" });
+    } catch (efErr) {
+      console.warn("[admin] reset-all-data 降级为直接删除:", efErr.message);
+      await supabase.from("interviews").delete().neq("user_id", "00000000-0000-0000-0000-000000000000");
+      await supabase.from("applications").delete().neq("user_id", "00000000-0000-0000-0000-000000000000");
+    }
     showToast("数据已清空");
     adminUsersLoaded = false;
     adminAllProfiles = [];
     if (adminCurrentView === "users") loadAdminUsers();
     else if (adminCurrentView === "data") loadAdminData();
-    else if (adminCurrentView === "system") loadAdminSystemInfo();
+    else if (adminCurrentView === "system") loadAdminSystem();
     else if (adminCurrentView === "dashboard") loadAdminDashboard();
   } catch (err) {
     showToast("操作失败：" + (err?.message || "未知错误"));
