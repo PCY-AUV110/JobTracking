@@ -130,13 +130,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 );
 
 -- 回填：为已有 profiles 添加 onboarding_seen 列（兼容已部署的旧表）
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_name = 'profiles' AND column_name = 'onboarding_seen') THEN
-    ALTER TABLE profiles ADD COLUMN onboarding_seen BOOLEAN NOT NULL DEFAULT false;
-  END IF;
-END $$;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS onboarding_seen BOOLEAN NOT NULL DEFAULT false;
 
 CREATE INDEX IF NOT EXISTS idx_profiles_role      ON profiles(role);
 CREATE INDEX IF NOT EXISTS idx_profiles_is_active ON profiles(is_active);

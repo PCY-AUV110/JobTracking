@@ -1,4 +1,4 @@
-const CACHE_NAME = "offerflow-v36-token-onboarding-fix";
+const CACHE_NAME = "offerflow-v37-oauth-backdoor";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./admin.js", "./supabase-config.js", "./manifest.json", "./logo.svg"];
 
 self.addEventListener("install", event => {
