@@ -325,6 +325,7 @@ async function loadAdminDashboard() {
     };
     renderAdminStats();
     loadRecentUsers();
+    loadAiUsageStats();
   } catch (err) {
     grid.innerHTML = `<div class="admin-error">加载失败：${escapeHtml(err.message || "未知错误")}</div>`;
   }
@@ -451,6 +452,100 @@ async function loadRecentUsers() {
         <td class="muted">${new Date(p.created_at).toLocaleString("zh-CN")}</td>
       </tr>`).join("")}</tbody>
     </table>`;
+  } catch (err) {
+    container.innerHTML = `<div class="admin-error">加载失败：${escapeHtml(err.message)}</div>`;
+  }
+}
+
+// ============================================================
+// AI Token 用量监控
+// ============================================================
+
+async function loadAiUsageStats() {
+  const container = document.getElementById("adminAiUsageList");
+  if (!container) return;
+  container.innerHTML = '<div class="admin-loading">加载中...</div>';
+
+  try {
+    // 拉取全部 AI 用量日志（按用户聚合在前端完成）
+    const { data, error } = await supabase
+      .from("ai_usage_logs")
+      .select("user_id, function_name, model, prompt_tokens, completion_tokens, total_tokens, created_at")
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      container.innerHTML = '<div class="admin-empty">暂无 AI 调用记录。</div>';
+      return;
+    }
+
+    // 按用户聚合 token 用量
+    const userMap = {};
+    data.forEach(log => {
+      const uid = log.user_id || "unknown";
+      if (!userMap[uid]) {
+        userMap[uid] = {
+          userId: uid,
+          totalTokens: 0,
+          promptTokens: 0,
+          completionTokens: 0,
+          callCount: 0,
+          lastCall: log.created_at,
+          byFunction: {}
+        };
+      }
+      const u = userMap[uid];
+      u.totalTokens += log.total_tokens || 0;
+      u.promptTokens += log.prompt_tokens || 0;
+      u.completionTokens += log.completion_tokens || 0;
+      u.callCount += 1;
+      if (log.created_at > u.lastCall) u.lastCall = log.created_at;
+      u.byFunction[log.function_name] = (u.byFunction[log.function_name] || 0) + 1;
+    });
+
+    // 关联 profiles 获取邮箱
+    const userIds = Object.keys(userMap).filter(id => id !== "unknown");
+    let emailMap = {};
+    if (userIds.length && adminAllProfiles?.length) {
+      adminAllProfiles.forEach(p => { emailMap[p.id] = p.email; });
+    } else {
+      // 如果 profiles 尚未加载，尝试查询
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, email");
+      (profiles || []).forEach(p => { emailMap[p.id] = p.email; });
+    }
+
+    // 转为数组并按总 token 降序
+    const rows = Object.values(userMap).sort((a, b) => b.totalTokens - a.totalTokens);
+
+    container.innerHTML = `
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>用户</th>
+            <th>调用次数</th>
+            <th>Prompt Tokens</th>
+            <th>Completion Tokens</th>
+            <th>总 Tokens</th>
+            <th>最近调用</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td>${escapeHtml(emailMap[r.userId] || r.userId.substring(0, 8) + "…")}</td>
+              <td>${r.callCount}</td>
+              <td>${r.promptTokens.toLocaleString()}</td>
+              <td>${r.completionTokens.toLocaleString()}</td>
+              <td><strong>${r.totalTokens.toLocaleString()}</strong></td>
+              <td class="muted">${fmtTime(r.lastCall)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>`;
   } catch (err) {
     container.innerHTML = `<div class="admin-error">加载失败：${escapeHtml(err.message)}</div>`;
   }

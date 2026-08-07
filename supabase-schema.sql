@@ -117,16 +117,26 @@ CREATE TRIGGER trg_interviews_set_user_id
 -- 4. 用户档案表 profiles（管理员角色与账户元数据）
 -- ============================================================
 CREATE TABLE IF NOT EXISTS profiles (
-  id            UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email         TEXT NOT NULL,
-  display_name  TEXT,
-  role          TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin', 'super_admin')),
-  is_active     BOOLEAN NOT NULL DEFAULT true,
-  avatar_url    TEXT,
-  last_login_at TIMESTAMPTZ,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+  id              UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email           TEXT NOT NULL,
+  display_name    TEXT,
+  role            TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin', 'super_admin')),
+  is_active       BOOLEAN NOT NULL DEFAULT true,
+  avatar_url      TEXT,
+  last_login_at  TIMESTAMPTZ,
+  onboarding_seen BOOLEAN NOT NULL DEFAULT false,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- 回填：为已有 profiles 添加 onboarding_seen 列（兼容已部署的旧表）
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name = 'profiles' AND column_name = 'onboarding_seen') THEN
+    ALTER TABLE profiles ADD COLUMN onboarding_seen BOOLEAN NOT NULL DEFAULT false;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_profiles_role      ON profiles(role);
 CREATE INDEX IF NOT EXISTS idx_profiles_is_active ON profiles(is_active);
@@ -276,7 +286,40 @@ CREATE POLICY "interviews_admin_select" ON interviews
   USING (public.is_admin());
 
 -- ============================================================
--- 8. 首次启用：把自己提升为超级管理员
+-- 8. AI 用量日志表 ai_usage_logs
+--    记录每次 AI 调用的 token 用量，供管理员监控
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ai_usage_logs (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  function_name     TEXT NOT NULL,  -- parse-text / parse-link / parse-screenshot
+  model             TEXT,
+  prompt_tokens     INT NOT NULL DEFAULT 0,
+  completion_tokens INT NOT NULL DEFAULT 0,
+  total_tokens      INT NOT NULL DEFAULT 0,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_usage_user_id    ON ai_usage_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_created_at ON ai_usage_logs(created_at);
+
+-- RLS：用户只能看自己的用量，管理员可看全部
+ALTER TABLE ai_usage_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "ai_usage_select_own" ON ai_usage_logs;
+CREATE POLICY "ai_usage_select_own" ON ai_usage_logs
+  FOR SELECT TO authenticated
+  USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "ai_usage_admin_select" ON ai_usage_logs;
+CREATE POLICY "ai_usage_admin_select" ON ai_usage_logs
+  FOR SELECT TO authenticated
+  USING (public.is_admin());
+
+-- INSERT 由 Edge Function 使用 service_role key 完成，前端不直接写入
+
+-- ============================================================
+-- 9. 首次启用：把自己提升为超级管理员
 --    把 <YOUR-EMAIL> 替换为你注册时的邮箱，取消注释并执行一次
 -- ============================================================
 -- UPDATE public.profiles

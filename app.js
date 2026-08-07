@@ -86,38 +86,38 @@ let currentProfile = null; // { id, email, role, is_active, display_name, ... }
 let authMode = "login"; // "login" | "signup"
 
 // ---- 新用户引导 ----
+// highlight → 实际 DOM 选择器映射，用于动态计算高亮位置
 const ONBOARDING_STEPS = [
   {
     title: "欢迎使用 OfferFlow",
     text: "这是你的求职管理中心。我们已准备了 4 条示例数据（Demo），帮助你快速上手。",
     highlight: "sidebar",
-    posClass: "tip-pos-sidebar",
+    selector: ".sidebar",
     arrowDir: "right"
   },
   {
     title: "添加新申请",
     text: "点击右上角「＋ 添加申请」，记录你投递的每一个岗位，包括公司、职位、状态等。",
     highlight: "addBtn",
-    posClass: "tip-pos-add",
+    selector: "#addApplicationBtn",
     arrowDir: "bottom"
   },
   {
     title: "搜索与筛选",
     text: "在搜索框中输入关键词，或用状态筛选快速定位特定阶段的申请。",
     highlight: "searchBox",
-    posClass: "tip-pos-search",
+    selector: "#searchInput",
     arrowDir: "bottom"
   },
   {
     title: "侧边栏导航",
     text: "左侧栏切换申请看板、面试日程、数据统计和系统设置。数据自动同步到云端。",
     highlight: "navItems",
-    posClass: "tip-pos-nav",
+    selector: ".nav",
     arrowDir: "right"
   }
 ];
 let onboardingIndex = 0;
-const ONBOARDING_SEEN_KEY = "offerflow:onboarding_seen";
 
 // ============================================================
 // Supabase 数据访问层
@@ -1265,13 +1265,15 @@ async function callAIFunction(name, body) {
   setAILoading(true);
   showAIMessage(null);
   try {
+    // 获取当前用户 session token，用于 Edge Function 记录 token 用量
+    const { data: { session } } = await supabase.auth.getSession();
     const res = await fetch(`${getFunctionsBase()}/${name}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         // Supabase 边缘函数需要 anon key 鉴权
         apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+        Authorization: `Bearer ${session?.access_token || SUPABASE_ANON_KEY}`
       },
       body: JSON.stringify(body)
     });
@@ -2005,25 +2007,78 @@ function startOnboarding() {
   renderOnboardingStep();
 }
 
+// 动态计算目标元素位置，定位高亮区域和提示卡片
 function renderOnboardingStep() {
   const step = ONBOARDING_STEPS[onboardingIndex];
   const total = ONBOARDING_STEPS.length;
 
-  // 更新高亮区域
+  // 根据实际 DOM 元素位置计算高亮区域
+  const targetEl = document.querySelector(step.selector);
   const backdrop = document.querySelector(".onboarding-backdrop");
-  backdrop.setAttribute("data-highlight", step.highlight);
-
-  // 更新提示卡片
   const tip = document.getElementById("onboardingTip");
-  tip.className = "onboarding-tip " + step.posClass;
+  const arrow = document.getElementById("onboardingArrow");
 
+  // 更新文本内容
   document.getElementById("onboardingBadge").textContent = `${onboardingIndex + 1} / ${total}`;
   document.getElementById("onboardingTitle").textContent = step.title;
   document.getElementById("onboardingText").textContent = step.text;
 
-  // 更新箭头方向
-  const arrow = document.getElementById("onboardingArrow");
-  arrow.className = "tip-arrow " + step.arrowDir;
+  if (targetEl) {
+    const rect = targetEl.getBoundingClientRect();
+    // 设置高亮挖洞区域
+    backdrop.setAttribute("data-highlight", step.highlight);
+    // 使用 CSS 变量传递高亮位置，由 backdrop::before 读取
+    backdrop.style.setProperty("--hl-top", `${rect.top}px`);
+    backdrop.style.setProperty("--hl-left", `${rect.left}px`);
+    backdrop.style.setProperty("--hl-width", `${rect.width}px`);
+    backdrop.style.setProperty("--hl-height", `${rect.height}px`);
+
+    // 根据高亮位置动态放置提示卡片
+    const tipWidth = 300;
+    const tipMaxH = 200;
+    const gap = 16;
+    let tipTop, tipLeft, arrowClass = step.arrowDir;
+
+    if (step.arrowDir === "right") {
+      // 卡片在高亮右侧
+      tipTop = rect.top + rect.height / 2 - tipMaxH / 2;
+      tipLeft = rect.right + gap;
+      // 如果右侧放不下，放左侧
+      if (tipLeft + tipWidth > window.innerWidth - 16) {
+        tipLeft = rect.left - tipWidth - gap;
+        arrowClass = "left";
+      }
+    } else if (step.arrowDir === "bottom") {
+      // 卡片在高亮下方
+      tipTop = rect.bottom + gap;
+      tipLeft = rect.left + rect.width / 2 - tipWidth / 2;
+    } else if (step.arrowDir === "left") {
+      tipTop = rect.top + rect.height / 2 - tipMaxH / 2;
+      tipLeft = rect.left - tipWidth - gap;
+    } else {
+      tipTop = rect.bottom + gap;
+      tipLeft = rect.left;
+    }
+
+    // 边界检查：确保卡片不超出视口
+    tipTop = Math.max(16, Math.min(tipTop, window.innerHeight - tipMaxH - 16));
+    tipLeft = Math.max(16, Math.min(tipLeft, window.innerWidth - tipWidth - 16));
+
+    tip.style.top = `${tipTop}px`;
+    tip.style.left = `${tipLeft}px`;
+    tip.style.right = "auto";
+    tip.style.maxWidth = `${tipWidth}px`;
+    arrow.className = "tip-arrow " + arrowClass;
+  } else {
+    // 兜底：未找到元素时居中显示
+    backdrop.setAttribute("data-highlight", step.highlight);
+    tip.style.top = "50%";
+    tip.style.left = "50%";
+    tip.style.right = "auto";
+    tip.style.maxWidth = "300px";
+    tip.style.transform = "translate(-50%, -50%)";
+    arrow.className = "tip-arrow";
+  }
 
   // 更新按钮文案
   const nextBtn = document.getElementById("onboardingNextBtn");
@@ -2039,20 +2094,25 @@ function nextOnboardingStep() {
   }
 }
 
+// 关闭引导并标记到数据库，确保只在新用户首次登录时显示
 function dismissOnboarding() {
   document.getElementById("onboardingOverlay").style.display = "none";
-  try {
-    const seen = JSON.parse(localStorage.getItem(ONBOARDING_SEEN_KEY) || "{}");
-    seen[currentUser?.id || "anonymous"] = true;
-    localStorage.setItem(ONBOARDING_SEEN_KEY, JSON.stringify(seen));
-  } catch (e) { /* ignore */ }
+  // 将 onboarding_seen 标记为 true，下次登录不再显示
+  if (currentUser && supabase) {
+    supabase
+      .from(TABLE_PROFILES)
+      .update({ onboarding_seen: true })
+      .eq("id", currentUser.id)
+      .then(({ error }) => {
+        if (error) console.warn("[onboarding] 标记失败:", error.message);
+        else if (currentProfile) currentProfile.onboarding_seen = true;
+      });
+  }
 }
 
+// 判断是否需要显示引导：基于数据库 profile.onboarding_seen 字段
 function isOnboardingSeen() {
-  try {
-    const seen = JSON.parse(localStorage.getItem(ONBOARDING_SEEN_KEY) || "{}");
-    return !!seen[currentUser?.id || "anonymous"];
-  } catch (e) { return false; }
+  return !!currentProfile?.onboarding_seen;
 }
 
 // ============================================================

@@ -4,8 +4,12 @@
 // 部署后需设置 secret: OPENAI_API_KEY
 // ============================================================
 
-// 类型：deno.json 已在项目根目录配置 Deno 类型
+// @ts-ignore - Supabase Edge Functions 使用 Deno 运行时，esm.sh 模块在 TS 中无法解析
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,6 +17,38 @@ export const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+// 从 JWT 中解析用户 ID（无需验证签名，Supabase 已在网关层验证）
+function getUserIdFromToken(authHeader: string | null): string | null {
+  if (!authHeader) return null;
+  const token = authHeader.replace("Bearer ", "");
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.sub || null;
+  } catch {
+    return null;
+  }
+}
+
+// 记录 AI 用量到数据库
+async function logAIUsage(userId: string | null, functionName: string, model: string, usage: any) {
+  if (!userId || !SERVICE_ROLE_KEY) return;
+  try {
+    const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      auth: { persistSession: false },
+    });
+    await adminClient.from("ai_usage_logs").insert({
+      user_id: userId,
+      function_name: functionName,
+      model,
+      prompt_tokens: usage?.prompt_tokens || 0,
+      completion_tokens: usage?.completion_tokens || 0,
+      total_tokens: usage?.total_tokens || 0,
+    });
+  } catch (e) {
+    console.warn("[parse-text] 记录 AI 用量失败:", e);
+  }
+}
 
 // @ts-ignore - Deno.serve 在 Supabase Edge Functions 运行时可用
 (Deno as any).serve(async (req: Request) => {
@@ -38,6 +74,8 @@ export const corsHeaders = {
       );
     }
 
+    const model = "gpt-4o-mini";
+
     // 调用 OpenAI（gpt-4o-mini，便宜且足够；纯文本任务用 chat completions 即可）
     const openaiResponse = await fetch(
       "https://api.openai.com/v1/chat/completions",
@@ -48,7 +86,7 @@ export const corsHeaders = {
           Authorization: `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model,
           messages: [
             {
               role: "system",
@@ -84,6 +122,10 @@ export const corsHeaders = {
 
     const data = await openaiResponse.json();
     const content = data.choices[0].message.content.trim();
+
+    // 异步记录 token 用量（不阻塞响应）
+    const userId = getUserIdFromToken(req.headers.get("Authorization"));
+    logAIUsage(userId, "parse-text", model, data.usage);
 
     // 解析 JSON（兼容 AI 可能包裹 markdown 代码块的情况）
     let parsed;
