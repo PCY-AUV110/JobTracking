@@ -112,3 +112,173 @@ DROP TRIGGER IF EXISTS trg_interviews_set_user_id ON interviews;
 CREATE TRIGGER trg_interviews_set_user_id
   BEFORE INSERT ON interviews
   FOR EACH ROW EXECUTE FUNCTION set_user_id();
+
+-- ============================================================
+-- 4. 用户档案表 profiles（管理员角色与账户元数据）
+-- ============================================================
+CREATE TABLE IF NOT EXISTS profiles (
+  id            UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email         TEXT NOT NULL,
+  display_name  TEXT,
+  role          TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin', 'super_admin')),
+  is_active     BOOLEAN NOT NULL DEFAULT true,
+  avatar_url    TEXT,
+  last_login_at TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_profiles_role      ON profiles(role);
+CREATE INDEX IF NOT EXISTS idx_profiles_is_active ON profiles(is_active);
+
+-- updated_at 自动维护
+CREATE OR REPLACE FUNCTION update_profiles_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_profiles_updated_at ON profiles;
+CREATE TRIGGER trg_profiles_updated_at
+  BEFORE UPDATE ON profiles
+  FOR EACH ROW EXECUTE FUNCTION update_profiles_updated_at();
+
+-- ------------------------------------------------------------
+-- 4.1 新用户注册时自动创建 profile
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION handle_new_user_profile()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, display_name, role)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1)),
+    'user'
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created_profile ON auth.users;
+CREATE TRIGGER on_auth_user_created_profile
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user_profile();
+
+-- ------------------------------------------------------------
+-- 4.2 回填：为已存在但缺少 profile 的 auth.users 补建记录
+--     （在启用本 schema 之前已注册的老用户）
+-- ------------------------------------------------------------
+INSERT INTO public.profiles (id, email, display_name, role)
+SELECT
+  u.id,
+  u.email,
+  COALESCE(u.raw_user_meta_data->>'display_name', split_part(u.email, '@', 1)),
+  'user'
+FROM auth.users u
+WHERE NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = u.id);
+
+-- ============================================================
+-- 5. 角色判定辅助函数（供 RLS 与前端逻辑复用）
+-- ============================================================
+-- 当前调用者是否为管理员（admin / super_admin 且启用中）
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role IN ('admin','super_admin') AND is_active
+  );
+$$;
+
+-- 当前调用者是否为超级管理员
+CREATE OR REPLACE FUNCTION public.is_super_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'super_admin' AND is_active
+  );
+$$;
+
+-- ============================================================
+-- 6. profiles 行级安全策略
+--    设计意图：管理员对其他用户数据仅 SELECT（只读）。
+--    写/删操作（切换角色、禁用用户等）必须通过 Edge Function + service_role
+--    key 完成，前端不持有 service_role key，因此这里不开放任何管理员 UPDATE。
+-- ============================================================
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+-- 6.1 读取：本人可读自己的 profile
+DROP POLICY IF EXISTS "profiles_select_own" ON profiles;
+DROP POLICY IF EXISTS "profiles_select_own_or_admin" ON profiles;
+CREATE POLICY "profiles_select_own" ON profiles
+  FOR SELECT TO authenticated
+  USING (auth.uid() = id);
+
+-- 6.2 读取：管理员（admin / super_admin）可读取所有 profiles
+-- 重要：使用 is_admin() 函数（SECURITY DEFINER）避免递归
+DROP POLICY IF EXISTS "profiles_select_admin" ON profiles;
+CREATE POLICY "profiles_select_admin" ON profiles
+  FOR SELECT TO authenticated
+  USING (public.is_admin());
+
+-- 6.3 更新：分两条策略避免递归
+--     管理员（admin/super_admin）可更新任何 profile（用于禁用/启用用户等）
+--     普通用户只能更新自己的 profile，但不能修改 role 和 is_active
+DROP POLICY IF EXISTS "profiles_update_own_or_super_admin" ON profiles;
+DROP POLICY IF EXISTS "profiles_update_own" ON profiles;
+DROP POLICY IF EXISTS "profiles_update_admin" ON profiles;
+
+-- 管理员更新策略
+CREATE POLICY "profiles_update_admin" ON profiles
+  FOR UPDATE TO authenticated
+  USING (public.is_admin());
+
+-- 普通用户更新策略（只能改自己，且不能改 role/is_active）
+-- 注意：由于 RLS 不支持列级权限，这里使用函数检查保持原值
+CREATE POLICY "profiles_update_own" ON profiles
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = id)
+  WITH CHECK (
+    auth.uid() = id
+    AND role IN ('user', 'admin', 'super_admin')  -- role 必须是有效值
+    AND is_active IN (true, false)                  -- is_active 必须是有效值
+  );
+
+-- 注意：不开放 INSERT / DELETE 策略——profile 由注册触发器创建，
+--       删除随 auth.users 级联。管理员/超级管理员的写操作一律走 Edge Function
+--       （service_role key 绕过 RLS），前端无任何跨用户写路径。
+
+-- ============================================================
+-- 7. 扩展现有表的 SELECT 策略：管理员可跨用户只读
+--    （写操作仍仅限本人；管理员只读用于系统统计与排查）
+--    重要：使用 is_admin() 函数避免递归
+-- ============================================================
+DROP POLICY IF EXISTS "admin_read_all_applications" ON applications;
+DROP POLICY IF EXISTS "applications_admin_select" ON applications;
+CREATE POLICY "applications_admin_select" ON applications
+  FOR SELECT TO authenticated
+  USING (public.is_admin());
+
+DROP POLICY IF EXISTS "admin_read_all_interviews" ON interviews;
+DROP POLICY IF EXISTS "interviews_admin_select" ON interviews;
+CREATE POLICY "interviews_admin_select" ON interviews
+  FOR SELECT TO authenticated
+  USING (public.is_admin());
+
+-- ============================================================
+-- 8. 首次启用：把自己提升为超级管理员
+--    把 <YOUR-EMAIL> 替换为你注册时的邮箱，取消注释并执行一次
+-- ============================================================
+-- UPDATE public.profiles
+--   SET role = 'super_admin'
+--   WHERE email = '<YOUR-EMAIL>';

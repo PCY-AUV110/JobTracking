@@ -110,36 +110,6 @@
   </div>
 </div>
 
-<!-- 用户卡下拉菜单 -->
-<div class="user-menu" id="userMenu" style="display:none">
-  <div class="user-menu-header">
-    <div class="avatar avatar-lg" id="userMenuAvatar">U</div>
-    <div>
-      <div class="user-menu-email" id="userMenuEmail">未登录</div>
-      <div class="user-menu-plan">免费版</div>
-    </div>
-  </div>
-  <div class="user-menu-divider"></div>
-  <button class="user-menu-item" id="changePasswordBtn">
-    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
-    <span>修改密码</span>
-  </button>
-  <button class="user-menu-item" id="exportDataMenuItem">
-    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
-    <span>导出数据</span>
-  </button>
-  <div class="user-menu-divider"></div>
-  <button class="user-menu-item danger" id="deleteAccountBtn">
-    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-    <span>注销账户</span>
-  </button>
-  <div class="user-menu-divider"></div>
-  <button class="user-menu-item" id="logoutMenuItem">
-    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
-    <span>退出登录</span>
-  </button>
-</div>
-
 <!-- 修改密码模态框 -->
 <div class="modal-backdrop" id="changePasswordModal">
   <div class="modal modal-sm">
@@ -208,7 +178,14 @@
       <button class="nav-item" data-view="settings">
         <span>⚙</span><span>系统设置</span>
       </button>
-    </nav>
+    <!-- ============================================================
+         管理员控制台入口（仅 admin / super_admin 可见）
+         点击后跳转到独立的 adminShell 布局
+    ============================================================ -->
+    <button class="nav-item nav-item-admin" data-view="admin" hidden>
+      <span>⛨</span><span>管理员</span>
+    </button>
+  </nav>
 
     <div class="user-card" id="userCard">
       <div class="user-card-inner">
@@ -221,6 +198,36 @@
           <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
         </button>
       </div>
+    </div>
+
+    <!-- 用户卡下拉菜单（位于 sidebar 内部，随侧边栏固定） -->
+    <div class="user-menu" id="userMenu">
+      <div class="user-menu-header">
+        <div class="avatar avatar-lg" id="userMenuAvatar">U</div>
+        <div>
+          <div class="user-menu-email" id="userMenuEmail">未登录</div>
+          <div class="user-menu-plan">免费版</div>
+        </div>
+      </div>
+      <div class="user-menu-divider"></div>
+      <button class="user-menu-item" id="changePasswordBtn">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+        <span>修改密码</span>
+      </button>
+      <button class="user-menu-item" id="exportDataMenuItem">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+        <span>导出数据</span>
+      </button>
+      <div class="user-menu-divider"></div>
+      <button class="user-menu-item danger" id="deleteAccountBtn">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+        <span>注销账户</span>
+      </button>
+      <div class="user-menu-divider"></div>
+      <button class="user-menu-item" id="logoutMenuItem">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+        <span>退出登录</span>
+      </button>
     </div>
   </aside>
 
@@ -395,6 +402,203 @@
       </section>
     </section>
   </main>
+</div>
+
+<!-- ============================================================
+     管理员控制台（独立布局，与主应用 appShell 平级）
+     仅 admin / super_admin 可见
+============================================================ -->
+<div id="adminShell" class="admin-shell" style="display:none;">
+  <!-- 管理员顶栏 -->
+  <header class="admin-topbar">
+    <div class="admin-topbar-left">
+      <button id="adminBackBtn" class="admin-back-btn" title="返回用户视图">← 返回</button>
+      <div class="admin-brand">
+        <span class="admin-badge">ADMIN</span>
+        <h2>管理控制台</h2>
+      </div>
+    </div>
+    <div class="admin-topbar-right">
+      <span id="adminCurrentUserEmail" class="admin-email"></span>
+      <span id="adminRoleBadge" class="admin-role-badge"></span>
+    </div>
+  </header>
+
+  <div class="admin-body">
+    <!-- 管理员子导航 -->
+    <nav class="admin-nav">
+      <button class="admin-nav-item active" data-admin-view="dashboard">
+        <span class="admin-nav-icon">📊</span><span>系统概览</span>
+      </button>
+      <button class="admin-nav-item" data-admin-view="users">
+        <span class="admin-nav-icon">👥</span><span>用户管理</span>
+      </button>
+      <button class="admin-nav-item" data-admin-view="data">
+        <span class="admin-nav-icon">📁</span><span>数据审查</span>
+      </button>
+      <button class="admin-nav-item admin-nav-advanced" data-admin-view="system">
+        <span class="admin-nav-icon">⚙️</span><span>系统配置</span>
+      </button>
+    </nav>
+
+    <!-- 管理员内容区 -->
+    <main class="admin-main">
+
+      <!-- ===== 系统概览 ===== -->
+      <section id="adminDashboardView" class="admin-view active">
+        <div class="admin-section-header">
+          <div>
+            <div class="admin-eyebrow">SYSTEM OVERVIEW</div>
+            <h2 class="admin-page-title">系统概览</h2>
+            <p class="admin-page-subtitle">全局数据与用户活跃情况一览。</p>
+          </div>
+          <button id="adminRefreshStatsBtn" class="btn secondary">刷新数据</button>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div id="adminStatsGrid" class="admin-stats-grid">
+          <!-- JS 动态渲染 -->
+        </div>
+
+        <!-- 近期注册用户列表 -->
+        <div class="admin-card">
+          <h3>近期注册用户（最近 7 天）</h3>
+          <div id="adminRecentUsersList" class="admin-table-wrap">
+            <!-- JS 动态渲染 -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 用户管理 ===== -->
+      <section id="adminUsersView" class="admin-view">
+        <div class="admin-section-header">
+          <div>
+            <div class="admin-eyebrow">USER MANAGEMENT</div>
+            <h2 class="admin-page-title">用户管理</h2>
+            <p class="admin-page-subtitle">查看所有注册用户，管理角色与状态。</p>
+          </div>
+          <div class="admin-toolbar">
+            <input id="adminUserSearch" class="input" placeholder="搜索邮箱或昵称..." />
+            <select id="adminUserRoleFilter" class="input">
+              <option value="all">全部角色</option>
+              <option value="user">普通用户</option>
+              <option value="admin">管理员</option>
+              <option value="super_admin">超级管理员</option>
+            </select>
+            <select id="adminUserStatusFilter" class="input">
+              <option value="all">全部状态</option>
+              <option value="active">已启用</option>
+              <option value="disabled">已禁用</option>
+            </select>
+          </div>
+        </div>
+        <div class="admin-card">
+          <table id="adminUserTable" class="admin-table">
+            <thead>
+              <tr>
+                <th>用户</th>
+                <th>角色</th>
+                <th>状态</th>
+                <th>注册时间</th>
+                <th>最后登录</th>
+                <th>申请数</th>
+                <th>面试数</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="adminUserTableBody"></tbody>
+          </table>
+        </div>
+
+        <!-- 用户详情抽屉面板 -->
+        <div id="adminUserDrawer" class="admin-drawer" style="display:none;">
+          <div class="admin-drawer-backdrop" data-close-drawer></div>
+          <div class="admin-drawer-panel">
+            <div class="admin-drawer-header">
+              <h3 id="adminDrawerUserName">用户详情</h3>
+              <button class="icon-btn" data-close-drawer>✕</button>
+            </div>
+            <div id="adminDrawerContent" class="admin-drawer-body">
+              <!-- JS 动态渲染：用户基本信息 + 申请记录列表 + 面试记录列表 -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 数据审查 ===== -->
+      <section id="adminDataView" class="admin-view">
+        <div class="admin-section-header">
+          <div>
+            <div class="admin-eyebrow">DATA AUDIT</div>
+            <h2 class="admin-page-title">数据审查</h2>
+            <p class="admin-page-subtitle">跨用户浏览申请与面试数据。</p>
+          </div>
+        </div>
+
+        <div class="admin-card">
+          <div class="admin-toolbar" style="margin-bottom:16px;">
+            <select id="adminDataUserFilter" class="input">
+              <option value="all">全部用户</option>
+              <!-- JS 动态填充用户列表 -->
+            </select>
+            <select id="adminDataStatusFilter" class="input">
+              <option value="all">全部状态</option>
+              <option value="准备申请">准备申请</option>
+              <option value="已申请">已申请</option>
+              <option value="审核中">审核中</option>
+              <option value="在线测评">在线测评</option>
+              <option value="准备面试">准备面试</option>
+              <option value="面试完成">面试完成</option>
+              <option value="收到 Offer">收到 Offer</option>
+              <option value="已终止">已终止</option>
+            </select>
+            <input id="adminDataSearch" class="input" placeholder="搜索公司/职位..." />
+          </div>
+          <div id="adminDataList" class="admin-data-list">
+            <!-- JS 动态渲染 -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 系统配置（仅 super_admin） ===== -->
+      <section id="adminSystemView" class="admin-view">
+        <div class="admin-section-header">
+          <div>
+            <div class="admin-eyebrow">SYSTEM CONFIG</div>
+            <h2 class="admin-page-title">系统配置</h2>
+            <p class="admin-page-subtitle">仅超级管理员可访问。</p>
+          </div>
+        </div>
+
+        <div class="admin-settings-grid">
+          <!-- Edge Function 状态 -->
+          <div class="admin-card">
+            <h3>Edge Functions 状态</h3>
+            <div id="adminEdgeFunctionStatus" class="admin-status-list">
+              <!-- JS 动态检测各函数可用性 -->
+            </div>
+          </div>
+
+          <!-- 数据库统计 -->
+          <div class="admin-card">
+            <h3>数据库信息</h3>
+            <div id="adminDbInfo" class="admin-info-list">
+              <!-- JS 动态渲染 -->
+            </div>
+          </div>
+
+          <!-- 危险操作区 -->
+          <div class="admin-card admin-danger-zone">
+            <h3>⚠️ 危险操作</h3>
+            <p class="small-muted">以下操作不可撤销，请谨慎执行。</p>
+            <button id="adminResetAllDataBtn" class="btn danger">清空全部用户数据</button>
+            <button id="adminExportAllDataBtn" class="btn secondary">导出全部数据（JSON）</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
 </div>
 
 <div class="modal-backdrop" id="applicationModal">
@@ -610,6 +814,7 @@
 </div>
 
 <script src="./supabase-config.js"></script>
+<script src="./admin.js"></script>
 <script src="./app.js"></script>
 </body>
 </html>

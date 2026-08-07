@@ -1,5 +1,5 @@
-const CACHE_NAME = "offerflow-v16-user-menu-flyout";
-const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./supabase-config.js", "./manifest.json", "./logo.svg"];
+const CACHE_NAME = "offerflow-v22-admin-fix";
+const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./admin.js", "./supabase-config.js", "./manifest.json", "./logo.svg"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));

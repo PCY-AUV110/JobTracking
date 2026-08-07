@@ -6,6 +6,7 @@
 const TABLE_APPLICATIONS = "applications";
 const TABLE_INTERVIEWS = "interviews";
 const TABLE_SETTINGS = "settings";
+const TABLE_PROFILES = "profiles";
 
 // ---- 业务常量 ----
 const STATUSES = [
@@ -23,7 +24,8 @@ const PAGE_META = {
   applications: ["APPLICATION TRACKER", "我的求职申请", "集中记录申请进度，快速查看下一步行动。"],
   interviews: ["INTERVIEW CALENDAR", "面试日程", "管理即将进行与已经完成的面试。"],
   analytics: ["CAREER ANALYTICS", "数据统计", "通过数据了解申请进度和转化情况。"],
-  settings: ["CLOUD WORKSPACE", "系统设置", "管理云端账户、备份和界面偏好。"]
+  settings: ["CLOUD WORKSPACE", "系统设置", "管理云端账户、备份和界面偏好。"],
+  admin: ["ADMIN CONSOLE", "管理员控制台", "用户管理、数据概览与系统配置。"]
 };
 
 // ---- 新用户首次登录时的演示数据（id 与时间戳在写入时生成）----
@@ -80,6 +82,7 @@ let settings = {
 let currentTab = "active";
 let calendarCursor = new Date();
 let currentUser = null;
+let currentProfile = null; // { id, email, role, is_active, display_name, ... }
 let authMode = "login"; // "login" | "signup"
 
 // ---- 新用户引导 ----
@@ -183,9 +186,17 @@ function interviewToRow(interview) {
   };
 }
 
-// 通用：通过 id 字段筛选删除（受 RLS 限制，只会删除当前用户的数据）
+// 通用：获取当前用户的数据
+// 重要：始终过滤 user_id，确保主视图只显示当前用户自己的数据
+// 即使是管理员，在个人视图中也只能看到自己的数据
 async function dbGetAll(table, mapper) {
-  const { data, error } = await supabase.from(table).select("*");
+  let query = supabase.from(table).select("*");
+  // 对 applications 和 interviews 强制过滤 user_id
+  // 防止管理员因为 RLS 策略而看到其他用户的数据
+  if (table === TABLE_APPLICATIONS || table === TABLE_INTERVIEWS) {
+    query = query.eq("user_id", currentUser.id);
+  }
+  const { data, error } = await query;
   if (error) throw error;
   return (data || []).map(mapper);
 }
@@ -587,9 +598,32 @@ async function onAuthStateChanged(event, session) {
   if (session?.user) {
     currentUser = session.user;
     updateAuthUI();
+
+    // ---- 管理员权限检查 ----
+    if (typeof window.checkAdminAccess === "function") {
+      const _isAdmin = await window.checkAdminAccess();
+      if (_isAdmin) {
+        window.adminRole = await window.getAdminRole();
+        if (typeof window.showAdminEntryButton === "function") {
+          window.showAdminEntryButton();
+        }
+      }
+    }
+
     showAppShell();
 
     try {
+      // 加载用户档案（角色），用于权限守卫与导航显隐
+      await loadProfile();
+      applyRoleUI();
+      touchLastLogin();
+      // 若当前停在管理员视图但已无权限，回退到申请看板
+      if (!isAdmin() && document.getElementById("adminShell")?.style.display !== "none") {
+        if (typeof window.hideAdminShell === "function") {
+          window.hideAdminShell();
+        }
+        switchView("applications");
+      }
       await seedIfNeeded();
       await loadState();
       renderStatusOptions();
@@ -605,9 +639,11 @@ async function onAuthStateChanged(event, session) {
   } else {
     // 已登出
     currentUser = null;
+    currentProfile = null;
     applications = [];
     interviews = [];
     settings = { compactMode: false, defaultActive: true };
+    applyRoleUI();
     updateAuthUI();
     showAuthScreen();
   }
@@ -694,6 +730,20 @@ function formatDate(date) {
 function formatDateTime(date, time) {
   const dateText = formatDate(date);
   return time ? `${dateText} ${time}` : dateText;
+}
+
+// 格式化 ISO 时间戳（TIMESTAMPTZ，如 profiles.created_at / last_login_at）
+function formatTimestamp(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
 
 function showToast(message) {
@@ -1522,6 +1572,104 @@ function switchView(view) {
     renderCalendar();
     renderUpcomingInterviews();
   }
+  if (view === "admin") {
+    if (!isAdmin()) {
+      switchView("applications");
+      showToast("无权访问管理员控制台");
+      return;
+    }
+    enterAdminPanel();
+  }
+}
+
+// ============================================================
+// 角色守卫与档案管理
+// ============================================================
+
+// 当前用户是否为管理员（admin / super_admin）
+function isAdmin() {
+  return currentProfile?.role === "admin" || currentProfile?.role === "super_admin";
+}
+
+// 当前用户是否为超级管理员
+function isSuperAdmin() {
+  return currentProfile?.role === "super_admin";
+}
+
+// 拉取当前用户的 profile（RLS 允许本人读取）
+async function loadProfile() {
+  if (!currentUser) { currentProfile = null; return; }
+  const { data, error } = await supabase
+    .from(TABLE_PROFILES)
+    .select("*")
+    .eq("id", currentUser.id)
+    .maybeSingle();
+  if (error) {
+    console.warn("[profile] 加载失败:", error.message);
+    currentProfile = null;
+    return;
+  }
+  currentProfile = data || null;
+}
+
+// 根据角色显隐管理员导航项
+function applyRoleUI() {
+  const adminNav = document.querySelector(".nav-item-admin");
+  if (adminNav) adminNav.hidden = !isAdmin();
+
+  if (isAdmin() && typeof window.showAdminEntryButton === "function") {
+    window.showAdminEntryButton();
+  }
+}
+
+// 更新最近登录时间（非阻塞；失败忽略）——供管理员面板"最近登录"列展示
+function touchLastLogin() {
+  if (!currentUser) return;
+  supabase
+    .from(TABLE_PROFILES)
+    .update({ last_login_at: new Date().toISOString() })
+    .eq("id", currentUser.id)
+    .then(({ error }) => {
+      if (error) console.warn("[profile] 更新 last_login_at 失败:", error.message);
+    });
+}
+
+// ============================================================
+// 管理员控制台入口（管理员逻辑已迁移至 admin.js）
+// 以下函数为兼容层，实际实现由 admin.js 提供
+// ============================================================
+
+// 调用管理员 Edge Function 的通用助手（供 admin.js 与本文件共用）
+async function callAdminFunction(name, { method = "POST", body } = {}) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error("未登录或会话已过期，请重新登录。");
+  }
+  const res = await fetch(`${getFunctionsBase()}/${name}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${session.access_token}`
+    },
+    body: method === "GET" ? undefined : JSON.stringify(body || {})
+  });
+  let data = {};
+  try { data = await res.json(); } catch { /* 无响应体 */ }
+  if (!res.ok || data.error) {
+    throw new Error(data.error || `请求失败（${res.status}）`);
+  }
+  return data;
+}
+
+// 旧兼容包装：进入管理员面板
+function enterAdminPanel() {
+  if (typeof window.showAdminShell === "function") {
+    window.showAdminShell();
+    window.getAdminRole().then(() => {
+      window.switchAdminView("dashboard");
+    });
+  }
 }
 
 // 用一个标志位防止 bindEvents 重复绑定
@@ -1591,17 +1739,32 @@ function bindEvents() {
     userMenu.classList.remove("open");
     openModal("changePasswordModal");
   });
-  document.getElementById("deleteAccountBtn").addEventListener("click", handleDeleteAccount);
+  document.getElementById("deleteAccountBtn").addEventListener("click", () => {
+    userMenu.classList.remove("open");
+    handleDeleteAccount();
+  });
   document.getElementById("exportDataMenuItem").addEventListener("click", () => {
     userMenu.classList.remove("open");
     exportData();
   });
   document.getElementById("changePasswordForm").addEventListener("submit", handleChangePassword);
 
+  // 兜底：点击菜单内任意菜单项时关闭弹窗（防止遗漏）
+  userMenu.addEventListener("click", (e) => {
+    if (e.target.closest(".user-menu-item")) {
+      userMenu.classList.remove("open");
+    }
+  });
+
   // ---- 主应用导航 ----
   document.querySelectorAll(".nav-item").forEach(button => {
     button.addEventListener("click", () => switchView(button.dataset.view));
   });
+
+  // ---- 管理员控制台：委托给 admin.js ----
+  if (typeof window.initAdmin === "function") {
+    window.initAdmin();
+  }
 
   document.querySelectorAll("[data-close]").forEach(button => {
     button.addEventListener("click", () => closeModal(button.dataset.close));
