@@ -3,6 +3,9 @@
 // 用户在「添加申请」中粘贴招聘网页 URL，自动填充表单
 // ============================================================
 
+declare const Deno: {
+  env: { get(key: string): string | undefined };
+};
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
 const corsHeaders = {
@@ -50,7 +53,7 @@ function extractText(html: string): string {
     .trim();
 }
 
-Deno.serve(async (req) => {
+(Deno as any).serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }

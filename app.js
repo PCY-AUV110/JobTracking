@@ -783,7 +783,7 @@ function renderApplications() {
   }
 
   list.innerHTML = filtered.map(item => `
-    <article class="application-card">
+    <article class="application-card" data-app-id="${item.id}">
       <div class="company-block">
         <div class="company-logo">${initials(item.company)}</div>
         <div style="min-width:0">
@@ -815,6 +815,55 @@ function renderApplications() {
       </div>
     </article>
   `).join("");
+
+  // 绑定卡片级交互：光标追踪 + 点击涟漪
+  bindCardInteractions();
+}
+
+// 为卡片绑定光标反光和点击涟漪动效
+function bindCardInteractions() {
+  const cards = document.querySelectorAll(".application-card");
+  cards.forEach(card => {
+    // 光标移动时更新 CSS 变量，实现光斑跟随
+    card.addEventListener("mousemove", (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+      card.style.setProperty("--cursor-x", `${x}%`);
+      card.style.setProperty("--cursor-y", `${y}%`);
+    });
+
+    // 点击涟漪效果
+    card.addEventListener("click", (e) => {
+      // 如果点击的是按钮/select，不触发涟漪
+      if (e.target.closest(".icon-btn, .status-select, a, button")) return;
+
+      const rect = card.getBoundingClientRect();
+      const ripple = document.createElement("span");
+      const size = Math.max(rect.width, rect.height) * 2;
+      ripple.style.cssText = `
+        position: absolute;
+        left: ${e.clientX - rect.left - size / 2}px;
+        top: ${e.clientY - rect.top - size / 2}px;
+        width: ${size}px;
+        height: ${size}px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(30, 95, 184, 0.18) 0%, rgba(30, 95, 184, 0.06) 40%, transparent 70%);
+        transform: scale(0);
+        animation: card-ripple 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        pointer-events: none;
+        z-index: 1;
+      `;
+      card.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 650);
+    });
+
+    // 离开卡片时清除光斑
+    card.addEventListener("mouseleave", () => {
+      card.style.setProperty("--cursor-x", "50%");
+      card.style.setProperty("--cursor-y", "50%");
+    });
+  });
 }
 
 function applicationName(id) {
