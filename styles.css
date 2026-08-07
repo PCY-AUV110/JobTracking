@@ -240,15 +240,31 @@ button { cursor: pointer; }
 /* 用户下拉菜单 */
 .user-menu {
   position: absolute;
-  bottom: 70px;
+  bottom: 58px;
   left: 12px;
   width: 220px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-radius: var(--r-4);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.6);
   z-index: 100;
   overflow: hidden;
   font-size: 13px;
+  /* 默认隐藏 */
+  opacity: 0;
+  transform: scale(0.4) translateY(24px);
+  transform-origin: bottom left;
+  pointer-events: none;
+  transition: opacity 0.28s ease, transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 显示状态：飞出动画 */
+.user-menu.open {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  pointer-events: auto;
 }
 
 .user-menu-header {

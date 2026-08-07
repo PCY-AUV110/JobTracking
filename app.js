@@ -1575,25 +1575,25 @@ function bindEvents() {
   if (userCardMenuBtn) {
     userCardMenuBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      userMenu.style.display = userMenu.style.display === "block" ? "none" : "block";
+      userMenu.classList.toggle("open");
     });
   }
   document.addEventListener("click", (e) => {
     if (!userMenu.contains(e.target) && !e.target.closest("#userCardMenuBtn")) {
-      userMenu.style.display = "none";
+      userMenu.classList.remove("open");
     }
   });
   document.getElementById("logoutMenuItem").addEventListener("click", () => {
-    userMenu.style.display = "none";
+    userMenu.classList.remove("open");
     handleLogout();
   });
   document.getElementById("changePasswordBtn").addEventListener("click", () => {
-    userMenu.style.display = "none";
+    userMenu.classList.remove("open");
     openModal("changePasswordModal");
   });
   document.getElementById("deleteAccountBtn").addEventListener("click", handleDeleteAccount);
   document.getElementById("exportDataMenuItem").addEventListener("click", () => {
-    userMenu.style.display = "none";
+    userMenu.classList.remove("open");
     exportData();
   });
   document.getElementById("changePasswordForm").addEventListener("submit", handleChangePassword);
