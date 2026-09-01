@@ -379,78 +379,6 @@ function saveRememberedEmail(email, remember) {
   }
 }
 
-// ============================================================
-// 检修入口后门（仅用于内部测试，请勿外泄）
-// 触发方式：在未登录界面连续点击 OfferFlow Logo/标题 5 次
-// 功能：自动以测试账号登录，无需手动输入账号密码
-// ============================================================
-const DEBUG_BACKDOOR = {
-  // 测试账号凭证（请在 Supabase 中预先注册该账号）
-  email: "debug@offerflow.dev",
-  password: "OfferFlow@2026#Debug",
-  // 连续点击 N 次触发
-  clickCount: 5,
-  // 两次点击间隔上限（毫秒），超时重置计数
-  windowMs: 2500,
-};
-
-let _debugClickTimes = [];
-
-async function _triggerDebugBackdoor() {
-  try {
-    showToast("检修入口已触发，正在登录…");
-    // 模拟用户输入并提交，复用原有的登录流程
-    document.getElementById("authEmailInput").value = DEBUG_BACKDOOR.email;
-    document.getElementById("authPasswordInput").value = DEBUG_BACKDOOR.password;
-    document.getElementById("rememberEmail").checked = false;
-    if (authMode !== "login") setAuthMode("login");
-    // 构造表单 submit 事件
-    const formEl = document.getElementById("authForm");
-    const submitEvt = new Event("submit", { cancelable: true, bubbles: true });
-    formEl.dispatchEvent(submitEvt);
-  } catch (e) {
-    console.error("[backdoor] 触发失败:", e);
-    showToast("检修入口异常，请手动输入账号。");
-  }
-}
-
-function bindDebugBackdoor() {
-  // 在未登录界面的所有 Logo / 标题容器上绑定监听
-  const brandSelectors = [
-    "#authScreen .auth-head",       // 登录/注册页头部
-    "#configScreen .brand",          // 配置页头部
-    ".brand",                        // 侧边栏品牌区
-  ];
-
-  brandSelectors.forEach(sel => {
-    document.querySelectorAll(sel).forEach(el => {
-      // 用 click + capture 确保不会被子元素阻止
-      el.addEventListener("click", (e) => {
-        // 仅在未登录状态时有效
-        if (currentUser) return;
-        const now = Date.now();
-        // 清理超出时间窗口的点击记录
-        _debugClickTimes = _debugClickTimes.filter(t => now - t <= DEBUG_BACKDOOR.windowMs);
-        _debugClickTimes.push(now);
-        if (_debugClickTimes.length >= DEBUG_BACKDOOR.clickCount) {
-          _debugClickTimes = [];
-          _triggerDebugBackdoor();
-        }
-      }, true);
-    });
-  });
-
-  // 调试用：键盘快捷键（Ctrl+Shift+D / Cmd+Shift+D）
-  document.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "D" || e.key === "d")) {
-      if (!currentUser) {
-        e.preventDefault();
-        _triggerDebugBackdoor();
-      }
-    }
-  });
-}
-
 // 第三方 OAuth 登录（Google / GitHub）
 async function handleOAuthSignIn(provider) {
   const errorEl = document.getElementById("authError");
@@ -2200,7 +2128,6 @@ async function init() {
 
   // 2. 绑定所有事件（包括认证表单、主应用导航等，用 eventsBound 防止重复绑定）
   bindEvents();
-  bindDebugBackdoor();
 
   // 3. 订阅认证状态变化
   supabase.auth.onAuthStateChange((event, session) => {
