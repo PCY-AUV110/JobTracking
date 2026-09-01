@@ -25,7 +25,8 @@ const PAGE_META = {
   interviews: ["INTERVIEW CALENDAR", "面试日程", "管理即将进行与已经完成的面试。"],
   analytics: ["CAREER ANALYTICS", "数据统计", "通过数据了解申请进度和转化情况。"],
   settings: ["CLOUD WORKSPACE", "系统设置", "管理云端账户、备份和界面偏好。"],
-  admin: ["ADMIN CONSOLE", "管理员控制台", "用户管理、数据概览与系统配置。"]
+  admin: ["ADMIN CONSOLE", "管理员控制台", "用户管理、数据概览与系统配置。"],
+  resumes: ["RESUME CENTER", "简历中心", "上传简历，AI 帮你提取结构化信息，管理多个版本。"]
 };
 
 // ---- 新用户首次登录时的演示数据（id 与时间戳在写入时生成）----
@@ -1584,6 +1585,9 @@ function switchView(view) {
       return;
     }
     enterAdminPanel();
+  }
+  if (view === "resumes" && typeof window.renderResumeVersionList === "function") {
+    window.renderResumeVersionList();
   }
 }
 

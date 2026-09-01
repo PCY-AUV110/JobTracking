@@ -3271,3 +3271,215 @@ body.compact .cards-list { gap: 8px; }
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================
+   简历中心（Resume Center）
+   注：沿用 --accent/--line/--muted 等已定义变量，不用 --claude-*
+   （现有 .ai-dropzone 等依赖的 --claude-* 变量在 styles.css 中
+   未定义，是既有问题，不在本次改动范围内，这里避免重复引入）
+   ============================================================ */
+.resume-upload-panel { display: flex; flex-direction: column; gap: 4px; }
+
+.resume-dropzone {
+  position: relative;
+  border: 2px dashed var(--line);
+  border-radius: var(--r-4);
+  background: rgba(255, 255, 255, 0.5);
+  min-height: 140px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
+
+.resume-dropzone:hover,
+.resume-dropzone.dragover {
+  border-color: var(--accent);
+  background: rgba(30, 95, 184, 0.05);
+}
+
+.resume-dropzone:focus-visible {
+  outline: 3px solid rgba(30, 95, 184, 0.3);
+  outline-offset: 2px;
+}
+
+.resume-dropzone-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 20px;
+}
+
+.resume-dropzone-icon { color: var(--muted); }
+
+.resume-dropzone-text {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.resume-dropzone-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.resume-step { margin-top: 18px; }
+
+.resume-step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.resume-step-head h4 { margin: 0; font-size: 14px; }
+
+.badge-mock {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(255, 159, 10, 0.14);
+  color: #a15c00;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.resume-text-preview {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 12px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  font-family: var(--mono, "SF Mono", Menlo, Consolas, monospace);
+  resize: vertical;
+  outline: none;
+}
+
+.resume-text-preview:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(30, 95, 184, 0.15);
+}
+
+.resume-step-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.resume-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.resume-loading[hidden] { display: none; }
+
+.resume-message {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.resume-message.error { background: #fdecea; color: #a02828; }
+.resume-message.success { background: #e8f5e9; color: #2e7d32; }
+
+.resume-field { margin-top: 16px; }
+
+.resume-field-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-2, var(--ink));
+}
+
+.chip-input {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 12px;
+  border-radius: 999px;
+  background: rgba(30, 95, 184, 0.08);
+  color: var(--accent-dark, var(--accent));
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.skill-chip-remove {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: .7;
+  padding: 0;
+}
+
+.skill-chip-remove:hover { opacity: 1; }
+
+.resume-list-heading { margin-top: 28px; }
+
+.resume-version-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.resume-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--r-4);
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.resume-card-title {
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.resume-badge-default {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(48, 176, 112, 0.14);
+  color: #1f7a4d;
+  font-size: 11px;
+  font-weight: 700;
+}

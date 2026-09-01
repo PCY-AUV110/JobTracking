@@ -174,6 +174,9 @@
       <button class="nav-item" data-view="settings">
         <span>⚙</span><span>系统设置</span>
       </button>
+      <button class="nav-item" data-view="resumes">
+        <span>▤</span><span>简历中心</span>
+      </button>
     <!-- ============================================================
          管理员控制台入口（仅 admin / super_admin 可见）
          点击后跳转到独立的 adminShell 布局
@@ -396,6 +399,96 @@
           <p class="note">部署后数据存储于 Supabase 云端，与 GitHub 仓库无关，可多设备登录同步。</p>
         </div>
       </section>
+    </section>
+
+    <!-- ============================================================
+         简历中心（Resume Center）
+         Day1-3：parse-resume 后端契约未定稿前，解析结果为本地演示数据
+    ============================================================ -->
+    <section id="resumesView" class="view">
+      <div class="section-heading">
+        <div>
+          <h3>简历中心</h3>
+          <p>上传 PDF 简历，自动提取文本并结构化，管理多个简历版本。</p>
+        </div>
+      </div>
+
+      <section class="panel resume-upload-panel">
+        <div class="resume-dropzone" id="resumeDropzone" tabindex="0">
+          <input type="file" id="resumeFileInput" accept="application/pdf" hidden />
+          <div class="resume-dropzone-inner" id="resumeDropzoneInner">
+            <svg class="resume-dropzone-icon" viewBox="0 0 24 24" width="36" height="36">
+              <path fill="currentColor" d="M19 13v6H5v-6H3v8h18v-8zM6 9l1.41 1.41L11 6.83V18h2V6.83l3.59 3.58L18 9l-6-6z"/>
+            </svg>
+            <p class="resume-dropzone-text">点击或拖拽 PDF 简历到此处</p>
+            <p class="resume-dropzone-hint">仅支持 PDF，文本在本机浏览器中提取，文件不会上传</p>
+          </div>
+        </div>
+
+        <div class="resume-step" id="resumePreviewStep" hidden>
+          <div class="resume-step-head">
+            <h4>1. 确认提取的文本</h4>
+            <span class="small-muted" id="resumePreviewFilename"></span>
+          </div>
+          <textarea class="resume-text-preview" id="resumePreviewText" rows="10"></textarea>
+          <div class="resume-step-actions">
+            <button type="button" class="btn secondary" id="resumeCancelBtn">取消</button>
+            <button type="button" class="btn primary" id="resumeParseBtn">确认并解析</button>
+          </div>
+        </div>
+
+        <div class="resume-loading" id="resumeLoading" hidden>
+          <span class="ai-spinner"></span>
+          <span>正在解析简历…</span>
+        </div>
+
+        <div class="resume-message" id="resumeMessage" hidden></div>
+
+        <div class="resume-step" id="resumeResultStep" hidden>
+          <div class="resume-step-head">
+            <h4>2. 结构化结果（可手动修正）</h4>
+            <span class="badge-mock" id="resumeMockBadge">本地演示解析</span>
+          </div>
+
+          <div class="resume-field">
+            <span class="resume-field-label">联系方式</span>
+            <div class="form-grid">
+              <label class="field"><span>姓名</span><input id="resumeContactName" /></label>
+              <label class="field"><span>邮箱</span><input id="resumeContactEmail" /></label>
+              <label class="field"><span>电话</span><input id="resumeContactPhone" /></label>
+            </div>
+          </div>
+
+          <div class="resume-field">
+            <span class="resume-field-label">技能</span>
+            <div class="chip-input" id="resumeSkillsChips"></div>
+            <input class="input" id="resumeSkillInput" placeholder="输入技能后按回车添加" />
+          </div>
+
+          <div class="resume-field">
+            <span class="resume-field-label">教育经历（每行一条）</span>
+            <textarea class="input" id="resumeEducationText" rows="3"></textarea>
+          </div>
+
+          <div class="resume-field">
+            <span class="resume-field-label">工作 / 项目经历（每行一条）</span>
+            <textarea class="input" id="resumeExperienceText" rows="5"></textarea>
+          </div>
+
+          <div class="resume-step-actions">
+            <button type="button" class="btn secondary" id="resumeDiscardBtn">丢弃</button>
+            <button type="button" class="btn primary" id="resumeSaveBtn">保存为简历版本</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="section-heading resume-list-heading">
+        <div>
+          <h3>我的简历版本</h3>
+          <p>标记默认简历，供后续岗位匹配使用。</p>
+        </div>
+      </div>
+      <section class="resume-version-list" id="resumeVersionList"></section>
     </section>
   </main>
 </div>
@@ -820,5 +913,6 @@
 <script src="./supabase-config.js"></script>
 <script src="./admin.js"></script>
 <script src="./app.js"></script>
+<script src="./resumes.js"></script>
 </body>
 </html>
