@@ -177,6 +177,12 @@
       <button class="nav-item" data-view="resumes">
         <span>▤</span><span>简历中心</span>
       </button>
+      <button class="nav-item" data-view="preferences">
+        <span>◎</span><span>岗位偏好</span>
+      </button>
+      <button class="nav-item" data-view="jobs">
+        <span>◈</span><span>智能岗位</span>
+      </button>
     <!-- ============================================================
          管理员控制台入口（仅 admin / super_admin 可见）
          点击后跳转到独立的 adminShell 布局
@@ -490,6 +496,121 @@
       </div>
       <section class="resume-version-list" id="resumeVersionList"></section>
     </section>
+
+    <!-- ============================================================
+         岗位偏好（Job Preferences）
+         Day4+：job_preferences 表未就绪前用 localStorage 存
+    ============================================================ -->
+    <section id="preferencesView" class="view">
+      <div class="section-heading">
+        <div>
+          <h3>岗位偏好</h3>
+          <p>设置关键词、地点与薪资底线，用于筛选和给岗位打匹配分。</p>
+        </div>
+      </div>
+
+      <section class="panel">
+        <div class="resume-field" style="margin-top:0">
+          <span class="resume-field-label">关键词</span>
+          <div class="chip-input" id="prefKeywordsChips"></div>
+          <input class="input" id="prefKeywordInput" placeholder="输入关键词后按回车添加，如 Data Analyst" />
+        </div>
+
+        <div class="resume-field">
+          <span class="resume-field-label">意向地点</span>
+          <div class="chip-input" id="prefLocationsChips"></div>
+          <input class="input" id="prefLocationInput" placeholder="输入城市后按回车添加，如 Toronto" />
+        </div>
+
+        <div class="resume-field">
+          <span class="resume-field-label">雇佣类型</span>
+          <div class="checkbox-group" id="prefJobTypesGroup">
+            <label class="checkbox-pill"><input type="checkbox" value="实习" /> <span>实习</span></label>
+            <label class="checkbox-pill"><input type="checkbox" value="校园招聘" /> <span>校园招聘</span></label>
+            <label class="checkbox-pill"><input type="checkbox" value="全职" /> <span>全职</span></label>
+            <label class="checkbox-pill"><input type="checkbox" value="兼职" /> <span>兼职</span></label>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <label class="field">
+            <span>薪资底线（年化，CAD）</span>
+            <input type="number" id="prefMinSalary" min="0" step="1000" placeholder="如 45000" />
+          </label>
+        </div>
+
+        <div class="resume-field">
+          <span class="resume-field-label">排除词</span>
+          <div class="chip-input" id="prefExcludeChips"></div>
+          <input class="input" id="prefExcludeInput" placeholder="输入排除词后按回车添加，如 Sales" />
+        </div>
+
+        <div class="setting-row" style="margin-top:18px">
+          <div>
+            <strong>身份过滤（默认开启）</strong>
+            <p>自动过滤要求 PR / Citizen / Security Clearance 的岗位。</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="prefFilterIdentityToggle" checked />
+            <span></span>
+          </label>
+        </div>
+
+        <div class="resume-step-actions">
+          <button type="button" class="btn primary" id="prefSaveBtn">保存偏好</button>
+        </div>
+      </section>
+    </section>
+
+    <!-- ============================================================
+         智能岗位卡片流（Smart Job Feed）
+         Day4+：mock 岗位数据，等 Codex crawl-jobs/score-jobs/vetting-flags 契约就绪后接真实数据
+    ============================================================ -->
+    <section id="jobsView" class="view">
+      <div class="section-heading">
+        <div>
+          <h3>智能岗位</h3>
+          <p>按匹配分和背调风险筛选岗位，一键加入申请看板。</p>
+        </div>
+      </div>
+
+      <section class="panel toolbar job-toolbar">
+        <select class="input" id="jobSortSelect">
+          <option value="match">按匹配分排序</option>
+          <option value="risk">按风险等级排序</option>
+          <option value="location">按地点排序</option>
+          <option value="source">按来源排序</option>
+        </select>
+        <select class="input" id="jobRiskFilter">
+          <option value="all">全部风险等级</option>
+          <option value="low">仅看低风险</option>
+          <option value="medium">仅看中风险</option>
+          <option value="high">仅看高风险</option>
+        </select>
+        <span class="badge-mock">本地演示数据</span>
+      </section>
+
+      <section class="job-card-grid" id="jobCardGrid"></section>
+    </section>
+
+    <!-- 岗位详情抽屉 -->
+    <div class="modal-backdrop" id="jobDetailModal">
+      <div class="modal">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">JOB DETAIL</p>
+            <h3 id="jobDetailTitle">岗位详情</h3>
+          </div>
+          <button class="close-btn" data-close="jobDetailModal">×</button>
+        </div>
+        <div id="jobDetailBody"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" data-close="jobDetailModal">关闭</button>
+          <a class="btn secondary" id="jobDetailApplyLink" target="_blank" rel="noopener">去申请页面 ↗</a>
+          <button type="button" class="btn primary" id="jobDetailAddBtn">加入申请看板</button>
+        </div>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -914,5 +1035,6 @@
 <script src="./admin.js"></script>
 <script src="./app.js"></script>
 <script src="./resumes.js"></script>
+<script src="./jobs.js"></script>
 </body>
 </html>
