@@ -23,6 +23,10 @@ pnpm-debug.log*
 .env.local
 .env.*.local
 
+# OAuth / cloud provider credentials (local only)
+client_secret_*.json
+*_service_account*.json
+
 # 临时与备份文件
 *.log
 *.bak
