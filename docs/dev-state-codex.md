@@ -7,18 +7,19 @@ Updated: 2026-09-02
 - Day 0 security fix accepted: commit `3751da6` removes the hardcoded debug-login backdoor.
 - Isolated worktree created at `../jobtrack-backend` on `feature/backend-core`.
 - API contract v1 frozen in `docs/api-contracts-v1.md` for Claude frontend integration.
+- API contract/state commit `b6844ec` pushed to `origin/feature/backend-core`.
+- Six-table migration validated against the linked Supabase project prerequisites (`update_profiles_updated_at` and `is_super_admin`) and prepared for deployment.
 - Confirmed backend ownership boundaries: `supabase/`, `.github/workflows/`, backend client wrapper, and backend docs.
 
 ## In progress
 
-- Commit and push the API contract and this state file.
+- Deploy and verify `supabase/migrations/20260901205439_backend_core_v1.sql`.
 
 ## Next
 
-1. Create a migration for the six-table backend schema and RLS policies.
-2. Add vetted GTA/ATS `job_sources` seed data with source evidence.
-3. Implement `crawl-jobs`, then `parse-resume`, `score-jobs`, `vetting-flags`, and `vetting-review`.
-4. Add the daily GitHub Actions chain and run one milestone-level integration test on port 8001.
+1. Add vetted GTA/ATS `job_sources` seed data with source evidence.
+2. Implement `crawl-jobs`, then `parse-resume`, `score-jobs`, `vetting-flags`, and `vetting-review`.
+3. Add the daily GitHub Actions chain and run one milestone-level integration test on port 8001.
 
 ## Blockers / decisions
 
