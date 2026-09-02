@@ -22,7 +22,7 @@ const JOB_PREF_STORAGE_KEY = "offerflow_mock_job_preferences_v3";
 // score-jobs/vetting-flags/vetting-review 这 5 个 v1 函数上线了）。跟 resumes.js
 // 的 RESUME_BACKEND_READY 一个模式：先把真实调用写好、挂在开关后面，Codex 确认
 // 函数部署好、v1.2 的 applied->viewed 回退规则定下来后，把开关打开即可。
-const JOBS_BACKEND_READY = false;
+const JOBS_BACKEND_READY = true;
 
 // 契约里 llm_grade 是 A|B|C|D|E|F 六档
 const MATCH_GRADE_STYLE = {
