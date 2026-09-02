@@ -31,12 +31,17 @@ let pdfjsModulePromise = null;
 // ============================================================
 // pdf.js 动态加载（vendor/ 本地文件，不走 CDN）
 // ============================================================
-function loadPdfJs() {
+function loadPdfJs(forceReload = false) {
+  if (forceReload) pdfjsModulePromise = null;
   if (!pdfjsModulePromise) {
     // Resolve from the current document URL so GitHub Pages' /JobTracking/
     // base path is preserved. A root-relative worker URL would 404 in production.
-    const pdfModuleUrl = new URL("vendor/pdfjs/pdf.min.mjs", document.baseURI).href;
-    const pdfWorkerUrl = new URL("vendor/pdfjs/pdf.worker.min.mjs", document.baseURI).href;
+    // forceReload adds a cache-busting query param: if a stale service-worker
+    // or browser cache served a broken/partial copy of these files (the class of
+    // bug we can't repro locally but a live user hit), this guarantees a fresh fetch.
+    const cacheBust = forceReload ? `?v=${Date.now()}` : "";
+    const pdfModuleUrl = new URL(`vendor/pdfjs/pdf.min.mjs${cacheBust}`, document.baseURI).href;
+    const pdfWorkerUrl = new URL(`vendor/pdfjs/pdf.worker.min.mjs${cacheBust}`, document.baseURI).href;
     pdfjsModulePromise = import(pdfModuleUrl).then(mod => {
       if (typeof mod.getDocument !== "function" || !mod.GlobalWorkerOptions) {
         throw new Error("PDF.js 模块加载不完整，请刷新页面后重试");
@@ -48,8 +53,8 @@ function loadPdfJs() {
   return pdfjsModulePromise;
 }
 
-async function extractPdfText(file) {
-  const pdfjsLib = await loadPdfJs();
+async function extractPdfText(file, forceReload = false) {
+  const pdfjsLib = await loadPdfJs(forceReload);
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
   const pageTexts = [];
@@ -202,19 +207,31 @@ async function handleResumeFileSelect(file) {
   }
   resumeSelectedFile = file;
   showResumeMessage(null);
+  let text;
   try {
-    const text = await extractPdfText(file);
-    if (!text) {
-      showResumeMessage("error", "未能从该 PDF 中提取到文本，可能是扫描件图片版，暂不支持。");
+    text = await extractPdfText(file);
+  } catch (firstErr) {
+    // 大概率是 PDF.js 模块/worker 被旧缓存（浏览器或 service worker）挡住了，
+    // 用带时间戳的 URL 强制重新拉取一次再试，避免用户手动强刷页面
+    try {
+      text = await extractPdfText(file, /* forceReload */ true);
+    } catch (retryErr) {
+      showResumeMessage(
+        "error",
+        "PDF 解析组件加载异常，已自动重试仍失败。请强制刷新页面（Mac: Cmd+Shift+R）后重试；若持续出现，请换 Chrome 浏览器测试并把完整报错发我们：" +
+          (retryErr.message || retryErr)
+      );
       return;
     }
-    document.getElementById("resumePreviewFilename").textContent = file.name;
-    document.getElementById("resumePreviewText").value = text;
-    document.getElementById("resumePreviewStep").hidden = false;
-    document.getElementById("resumeResultStep").hidden = true;
-  } catch (err) {
-    showResumeMessage("error", "PDF 文本提取失败：" + (err.message || err));
   }
+  if (!text) {
+    showResumeMessage("error", "未能从该 PDF 中提取到文本，可能是扫描件图片版，暂不支持。");
+    return;
+  }
+  document.getElementById("resumePreviewFilename").textContent = file.name;
+  document.getElementById("resumePreviewText").value = text;
+  document.getElementById("resumePreviewStep").hidden = false;
+  document.getElementById("resumeResultStep").hidden = true;
 }
 
 async function handleResumeParseClick() {
