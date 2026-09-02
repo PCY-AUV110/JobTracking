@@ -3557,7 +3557,8 @@ body.compact .cards-list { gap: 8px; }
 .job-card-actions { justify-content: flex-end; }
 
 .grade-badge,
-.risk-badge {
+.risk-badge,
+.status-badge {
   display: inline-flex;
   align-items: center;
   padding: 3px 10px;
@@ -3565,3 +3566,9 @@ body.compact .cards-list { gap: 8px; }
   font-size: 11.5px;
   font-weight: 700;
 }
+
+.job-card.is-expired {
+  opacity: .62;
+}
+
+.job-card:not(.is-expired) { cursor: pointer; }

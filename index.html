@@ -572,6 +572,12 @@
           <h3>智能岗位</h3>
           <p>按匹配分和背调风险筛选岗位，一键加入申请看板。</p>
         </div>
+        <button class="btn primary" id="jobRefreshBtn">🔄 刷新岗位</button>
+      </div>
+
+      <div class="segmented-tabs">
+        <button class="segment active" data-job-tab="feed">当前推荐</button>
+        <button class="segment" data-job-tab="history">📜 历史记录</button>
       </div>
 
       <section class="panel toolbar job-toolbar">
@@ -586,6 +592,13 @@
           <option value="low">仅看低风险</option>
           <option value="medium">仅看中风险</option>
           <option value="high">仅看高风险</option>
+        </select>
+        <select class="input" id="jobStatusFilter">
+          <option value="all">全部状态</option>
+          <option value="new">未查看</option>
+          <option value="viewed">已查看</option>
+          <option value="applied">已申请</option>
+          <option value="expired">已过期</option>
         </select>
         <span class="badge-mock">本地演示数据</span>
       </section>
