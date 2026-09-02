@@ -25,7 +25,10 @@ const PAGE_META = {
   interviews: ["INTERVIEW CALENDAR", "面试日程", "管理即将进行与已经完成的面试。"],
   analytics: ["CAREER ANALYTICS", "数据统计", "通过数据了解申请进度和转化情况。"],
   settings: ["CLOUD WORKSPACE", "系统设置", "管理云端账户、备份和界面偏好。"],
-  admin: ["ADMIN CONSOLE", "管理员控制台", "用户管理、数据概览与系统配置。"]
+  admin: ["ADMIN CONSOLE", "管理员控制台", "用户管理、数据概览与系统配置。"],
+  resumes: ["RESUME CENTER", "简历中心", "上传简历，AI 帮你提取结构化信息，管理多个版本。"],
+  preferences: ["JOB PREFERENCES", "岗位偏好", "设置关键词、地点与薪资底线，用于筛选和匹配打分。"],
+  jobs: ["SMART JOBS", "智能岗位", "按匹配分和背调风险筛选岗位，一键加入申请看板。"]
 };
 
 // ---- 新用户首次登录时的演示数据（id 与时间戳在写入时生成）----
@@ -1584,6 +1587,15 @@ function switchView(view) {
       return;
     }
     enterAdminPanel();
+  }
+  if (view === "resumes" && typeof window.renderResumeVersionList === "function") {
+    window.renderResumeVersionList();
+  }
+  if (view === "preferences" && typeof window.renderJobPreferencesForm === "function") {
+    window.renderJobPreferencesForm();
+  }
+  if (view === "jobs" && typeof window.renderJobCardGrid === "function") {
+    window.renderJobCardGrid();
   }
 }
 
