@@ -11,12 +11,14 @@ Updated: 2026-09-02
 - API contract v1.1 frozen for feed refresh, paginated history, and match-status transitions.
 - Day 2 frontend fixes deployed to `main` at merge commit `f33d58f` and verified on GitHub Pages with zero browser console warnings/errors.
 - Five backend Edge Functions implemented with shared authenticated/service-role helpers; daily public-ATS crawl workflow added.
+- All five functions deployed ACTIVE v1 with JWT verification; unauthenticated smoke test correctly returns HTTP 401.
+- Seeded the first source-verified GTA/Canada ATS board: Wealthsimple via Ashby public posting API.
 - Six-table migration validated against the linked Supabase project prerequisites (`update_profiles_updated_at` and `is_super_admin`) and prepared for deployment.
 - Confirmed backend ownership boundaries: `supabase/`, `.github/workflows/`, backend client wrapper, and backend docs.
 
 ## In progress
 
-- Type-check, deploy, and smoke-test the five Edge Functions.
+- Merge current `main`, complete final diff review, and publish backend core.
 
 ## Next
 
