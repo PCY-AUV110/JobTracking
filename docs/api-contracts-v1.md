@@ -1,4 +1,4 @@
-# OfferFlow Backend API Contracts v1
+# OfferFlow Backend API Contracts v1.2
 
 Status: **frozen for frontend integration**  
 Date: 2026-09-02  
@@ -406,5 +406,40 @@ updateMatchStatus(matchId: string, status: "viewed" | "applied"): Promise<ApiRes
 ```
 
 `getJobFeed`/`getJobHistory` are plain `GET` invocations (`supabase.functions.invoke` supports query params via the `method`/`body` options, or a direct `fetch` to the function URL with a query string — either is fine since both require the same Authorization header). `updateMatchStatus` is a `PATCH`.
+
+## Addendum v1.2 (2026-09-02) — reversible applied state and internship timing
+
+Status: **frozen for frontend integration**.
+
+`PATCH /job_matches/{id}/status` accepts `viewed|applied`. In addition to
+`new -> viewed -> applied`, it explicitly permits `applied -> viewed` so a user
+can undo an accidental applied mark. Requests are idempotent: setting the current
+status again returns `200` with the unchanged match. On `applied -> viewed`, the
+server clears `applied_at` and preserves/sets `viewed_at`. Clients still cannot
+set `new` or `expired`; `expired` remains system-derived.
+
+`job_preferences` adds:
+
+```json
+{
+  "internship_duration": ["4m", "8m", "12m"],
+  "start_season": ["fall", "winter", "summer"]
+}
+```
+
+Both arrays are optional in requests and default to `[]` (no preference).
+`score-jobs` treats them as soft signals: a matching duration/season adds points;
+a clear conflict subtracts points, but never hard-filters the job.
+
+Updated client signature remains:
+
+```ts
+updateMatchStatus(matchId: string, status: "viewed" | "applied"):
+  Promise<ApiResult<{ match: JobMatchStatus }>>;
+```
+
+Supabase transport mapping: invoke Edge Function `job-matches-status` with
+`method: "PATCH"` and body `{ "id": matchId, "status": status }`. This maps the
+logical REST route above without exposing service-role credentials.
 
 Implementation note: `listMatchedJobs`/`getJobCard` from v1 are superseded by `getJobFeed`/`getJobHistory` for the feed/history views — the underlying job-card row shape is compatible (same fields), so existing card-rendering code should not need to change, only the fetch call.
