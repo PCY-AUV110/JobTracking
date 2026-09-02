@@ -3,13 +3,13 @@
 // 职责：PDF 上传 → 客户端提取文本 → 结构化结果编辑 → 多简历版本管理
 // 依赖：全局 escapeHtml、showToast、formatTimestamp（来自 app.js）
 //
-// ⚠️ Mock 说明：Edge Function parse-resume 的接口契约 Day1 晚间才定稿，
-// resumes 表也要等 Codex 完成 migration 才存在。此文件当前用
-// localStorage + 本地关键词启发式解析 冒充后端，交互和展示逻辑与真实
-// 接口对齐（见 RESUME_BACKEND_READY 开关），契约定稿后把
-// parseResumeMock() 换成真正的 callAIFunction("parse-resume", ...) 调用、
-// 把 loadResumeVersions/persistResumeVersions 换成 dbGetAll/dbUpsert 即可，
-// 页面渲染逻辑不需要大改。
+// ⚠️ Mock 说明：契约已在 docs/api-contracts-v1.md（Codex，2026-09-02 frozen）
+// 定稿，但 resumes 表 migration 还没跑到生产库，所以字段形状已经对齐契约，
+// 数据来源仍是 localStorage + 本地关键词启发式解析。RESUME_BACKEND_READY
+// 打开后，callParseResumeBackend() 走 supabase.functions.invoke("parse-resume", ...)，
+// 渲染/存储逻辑不需要改，因为 resumeDraft 的 education/experience 已经是
+// 契约里的 {institution/credential/field/...} / {company/title/highlights/...}
+// 结构化对象，不是简单字符串数组。
 // ============================================================
 
 const RESUME_BACKEND_READY = false; // TODO(Day2): Codex 的 resumes 表 + parse-resume 就绪后置为 true 并接入 dbGetAll/dbUpsert
@@ -114,7 +114,26 @@ function splitSkillTokens(sectionLines) {
     .slice(0, 24);
 }
 
-// 本地关键词启发式解析，用于在 parse-resume 契约定稿前跑通交互
+// 契约里 education/experience 是结构化对象数组，mock 阶段没法真的从纯文本
+// 抠出 institution/credential/field 这些子字段，就把整行塞进主字段，
+// 其余字段留空——形状对了，真实 parse-resume 上线后直接覆盖即可
+function linesToEducation(lines) {
+  return lines.map(line => ({ institution: line, credential: "", field: "", start_date: null, end_date: null }));
+}
+
+function linesToExperience(lines) {
+  return lines.map(line => ({ company: line, title: "", start_date: null, end_date: null, highlights: [] }));
+}
+
+function educationToLines(education) {
+  return (education || []).map(e => [e.institution, e.credential, e.field].filter(Boolean).join(" · "));
+}
+
+function experienceToLines(experience) {
+  return (experience || []).map(e => [e.company, e.title, ...(e.highlights || [])].filter(Boolean).join(" · "));
+}
+
+// 本地关键词启发式解析，用于在真实 parse-resume 接入前跑通交互
 function mockParseResumeText(text) {
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const emailMatch = text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
@@ -124,11 +143,15 @@ function mockParseResumeText(text) {
     contact: {
       name: lines[0] ? lines[0].slice(0, 30) : "",
       email: emailMatch ? emailMatch[0] : "",
-      phone: phoneMatch ? phoneMatch[0] : ""
+      phone: phoneMatch ? phoneMatch[0] : "",
+      location: ""
     },
+    summary: "",
     skills: splitSkillTokens(skillLines),
-    education: extractSection(lines, "education"),
-    experience: extractSection(lines, "experience")
+    education: linesToEducation(extractSection(lines, "education")),
+    experience: linesToExperience(extractSection(lines, "experience")),
+    certifications: [],
+    languages: []
   };
 }
 
@@ -212,21 +235,13 @@ async function handleResumeParseClick() {
   }
 }
 
-// 预留：Day1 晚间契约定稿、Codex 的 parse-resume 上线后接入（此函数在 RESUME_BACKEND_READY=true 前不会被调用）
+// docs/api-contracts-v1.md #1 parse-resume（此函数在 RESUME_BACKEND_READY=true 前不会被调用）
 async function callParseResumeBackend(rawText, filename) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const res = await fetch(`${getFunctionsBase()}/parse-resume`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${session?.access_token || SUPABASE_ANON_KEY}`
-    },
-    body: JSON.stringify({ raw_text: rawText, filename })
+  const { data, error } = await supabase.functions.invoke("parse-resume", {
+    body: { filename, raw_text: rawText, locale: "en-CA" }
   });
-  const data = await res.json();
-  if (!res.ok || data.error) throw new Error(data.error || `请求失败（${res.status}）`);
-  return data.parsed;
+  if (error) throw error;
+  return data.resume.parsed;
 }
 
 function renderResumeDraft() {
@@ -234,8 +249,9 @@ function renderResumeDraft() {
   document.getElementById("resumeContactName").value = resumeDraft.contact?.name || "";
   document.getElementById("resumeContactEmail").value = resumeDraft.contact?.email || "";
   document.getElementById("resumeContactPhone").value = resumeDraft.contact?.phone || "";
-  document.getElementById("resumeEducationText").value = (resumeDraft.education || []).join("\n");
-  document.getElementById("resumeExperienceText").value = (resumeDraft.experience || []).join("\n");
+  document.getElementById("resumeContactLocation").value = resumeDraft.contact?.location || "";
+  document.getElementById("resumeEducationText").value = educationToLines(resumeDraft.education).join("\n");
+  document.getElementById("resumeExperienceText").value = experienceToLines(resumeDraft.experience).join("\n");
   renderSkillChips();
 }
 
@@ -271,15 +287,18 @@ function removeSkillAt(idx) {
 }
 
 function collectDraftFromForm() {
+  const eduLines = document.getElementById("resumeEducationText").value.split("\n").map(s => s.trim()).filter(Boolean);
+  const expLines = document.getElementById("resumeExperienceText").value.split("\n").map(s => s.trim()).filter(Boolean);
   return {
     ...resumeDraft,
     contact: {
       name: document.getElementById("resumeContactName").value.trim(),
       email: document.getElementById("resumeContactEmail").value.trim(),
-      phone: document.getElementById("resumeContactPhone").value.trim()
+      phone: document.getElementById("resumeContactPhone").value.trim(),
+      location: document.getElementById("resumeContactLocation").value.trim()
     },
-    education: document.getElementById("resumeEducationText").value.split("\n").map(s => s.trim()).filter(Boolean),
-    experience: document.getElementById("resumeExperienceText").value.split("\n").map(s => s.trim()).filter(Boolean)
+    education: linesToEducation(eduLines),
+    experience: linesToExperience(expLines)
   };
 }
 
@@ -300,9 +319,12 @@ function handleResumeSaveClick() {
       filename: finalDraft.filename,
       rawText: finalDraft.rawText,
       contact: finalDraft.contact,
+      summary: finalDraft.summary || "",
       skills: finalDraft.skills || [],
       education: finalDraft.education || [],
       experience: finalDraft.experience || [],
+      certifications: finalDraft.certifications || [],
+      languages: finalDraft.languages || [],
       status: RESUME_BACKEND_READY ? "parsed" : "mock_parsed",
       isDefault: isFirst,
       createdAt: new Date().toISOString()
