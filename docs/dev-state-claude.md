@@ -1,7 +1,20 @@
 # 前端开发状态（Claude Code 维护）
 
-分支：`feature/day2-frontend-fixes`（已 push，基于已合并 main 的 Day1-3 前端主线）
+分支：`feature/day3-frontend`（已 push，从最新 main 切出，main 此时已含 Day1-3 前端主线 + Day2 修复 + 后端 v1 五个 Edge Function）
 工区：`/Users/p.cy/Desktop/杂货铺/jobtrack-release`（独立 worktree，与主工区 `jobtrack_github_demo`、Codex 的 `jobtrack-backend` 平级），本地预览用 `python3 -m http.server 8000`
+
+## Day3：新需求 2 项（2026-09-02，已 push，等 Codex 合并 main）
+
+后端现状核实：v1.1 契约里的 `GET /jobs/feed`、`GET /jobs/history`、`PATCH /job_matches/:id/status` **还没有对应的 Edge Function 部署**（`supabase/functions/` 下只有 v1 的 5 个：parse-resume/crawl-jobs/score-jobs/vetting-flags/vetting-review）。所以本轮继续 mock，真实调用路径写好但关着（`JOBS_BACKEND_READY = false`，和 `resumes.js` 的 `RESUME_BACKEND_READY` 同一个模式）。
+
+1. **"加入申请"改可撤销 toggle**：applied 状态的按钮变成 "✓ 已加入申请"，卡片上和详情弹窗里都能点它撤销回 viewed（清空 `applied_at`）。撤销**不会删除** `applications` 表里已经创建的申请记录，只回退这张卡片的匹配状态标签——如果这不是 Steven 想要的语义（比如撤销也要把申请看板里的记录一起删掉），需要再澄清。`applied -> viewed` 这个反向流转在 v1.1 契约文字里没写清楚允许还是禁止，等 Codex 发 v1.2 确认。
+2. **岗位偏好新增两组**：实习时长（4m/8m/12m）、入职季节（fall/winter/summer），checkbox-pill 多选样式（跟雇佣类型那组一致），字段名 `internship_duration`/`start_season`，按 Steven 给的写，v1.2 契约若不一致要改。
+
+commit: `7d18994`（applied 撤销 toggle + 偏好新字段）。
+
+## 验证方式记录（这次踩了个测试脚本坑，别人接手要注意）
+
+组合测试脚本里先测了偏好保存（里面有 `page.reload()`），再测卡片 toggle——reload 会清掉之前用 `page.evaluate` 打的 `window.dbUpsert` 桩，导致后面测 toggle 时打到真实（未登录会 401）的 `dbUpsert`，整条链路失败，但这是**测试脚本问题不是 app 问题**。改用两种独立方式验证过 toggle 逻辑本身是对的：① 直接 `page.evaluate` 调 `addJobToApplications`/`revokeApplication` 检查 `jobMatches` 状态字段（new→applied→viewed，`applied_at`/`viewed_at` 都对）；② 单独一个干净脚本里打桩后走真实 DOM 点击，卡片和按钮渲染都正确。以后写涉及 `page.reload()` 的组合测试，reload 后要重新打桩。
 
 ## Day2：生产反馈 4 项修复（2026-09-02，已 push，等 Codex 合并 main）
 
