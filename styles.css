@@ -3572,3 +3572,15 @@ body.compact .cards-list { gap: 8px; }
 }
 
 .job-card:not(.is-expired) { cursor: pointer; }
+
+.applied-toggle {
+  color: #1f7a4d;
+  border-color: rgba(48, 176, 112, 0.35);
+  background: rgba(48, 176, 112, 0.08);
+}
+
+.applied-toggle:hover {
+  color: #a02828;
+  border-color: rgba(255, 69, 58, 0.35);
+  background: rgba(255, 69, 58, 0.08);
+}

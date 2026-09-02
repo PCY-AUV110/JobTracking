@@ -15,7 +15,14 @@
 // ============================================================
 
 const JOB_MATCHES_STORAGE_KEY = "offerflow_mock_job_matches_v1";
-const JOB_PREF_STORAGE_KEY = "offerflow_mock_job_preferences_v2";
+const JOB_PREF_STORAGE_KEY = "offerflow_mock_job_preferences_v3";
+
+// GET /jobs/feed、GET /jobs/history、PATCH /job_matches/:id/status 在契约 v1.1
+// 里已冻结，但对应的 Edge Function 还没有实际部署（只有 parse-resume/crawl-jobs/
+// score-jobs/vetting-flags/vetting-review 这 5 个 v1 函数上线了）。跟 resumes.js
+// 的 RESUME_BACKEND_READY 一个模式：先把真实调用写好、挂在开关后面，Codex 确认
+// 函数部署好、v1.2 的 applied->viewed 回退规则定下来后，把开关打开即可。
+const JOBS_BACKEND_READY = false;
 
 // 契约里 llm_grade 是 A|B|C|D|E|F 六档
 const MATCH_GRADE_STYLE = {
@@ -79,7 +86,11 @@ function loadJobPreferences() {
     jobPreferences = null;
   }
   if (!jobPreferences) {
-    jobPreferences = { keywords: [], locations: [], job_types: [], min_salary: null, excluded_keywords: [], filter_pr_citizen: true };
+    jobPreferences = {
+      keywords: [], locations: [], job_types: [], min_salary: null, excluded_keywords: [], filter_pr_citizen: true,
+      // 字段名先按 Steven 给的写，Codex v1.2 契约确认后如有出入再改
+      internship_duration: [], start_season: []
+    };
   }
   return jobPreferences;
 }
@@ -103,6 +114,12 @@ function renderJobPreferencesFormUI() {
   renderChipList("prefExcludeChips", jobPreferences.excluded_keywords, removePrefExclude);
   document.querySelectorAll("#prefJobTypesGroup input[type=checkbox]").forEach(box => {
     box.checked = jobPreferences.job_types.includes(box.value);
+  });
+  document.querySelectorAll("#prefInternshipDurationGroup input[type=checkbox]").forEach(box => {
+    box.checked = jobPreferences.internship_duration.includes(box.value);
+  });
+  document.querySelectorAll("#prefStartSeasonGroup input[type=checkbox]").forEach(box => {
+    box.checked = jobPreferences.start_season.includes(box.value);
   });
   document.getElementById("prefMinSalary").value = jobPreferences.min_salary ?? "";
   document.getElementById("prefFilterIdentityToggle").checked = jobPreferences.filter_pr_citizen !== false;
@@ -143,6 +160,8 @@ function removePrefExclude(idx) { jobPreferences.excluded_keywords.splice(idx, 1
 
 function handlePrefSaveClick() {
   jobPreferences.job_types = Array.from(document.querySelectorAll("#prefJobTypesGroup input:checked")).map(b => b.value);
+  jobPreferences.internship_duration = Array.from(document.querySelectorAll("#prefInternshipDurationGroup input:checked")).map(b => b.value);
+  jobPreferences.start_season = Array.from(document.querySelectorAll("#prefStartSeasonGroup input:checked")).map(b => b.value);
   const minSalaryVal = document.getElementById("prefMinSalary").value;
   jobPreferences.min_salary = minSalaryVal ? Number(minSalaryVal) : null;
   jobPreferences.filter_pr_citizen = document.getElementById("prefFilterIdentityToggle").checked;
@@ -228,7 +247,7 @@ function jobCardHtml(job) {
       <div class="card-actions job-card-actions">
         <button type="button" class="btn secondary" data-view-job="${job.id}">查看详情</button>
         ${job.match_status === "applied"
-          ? `<button type="button" class="btn secondary" disabled>已加入申请</button>`
+          ? `<button type="button" class="btn secondary applied-toggle" data-revoke-job="${job.id}" title="点击撤销申请">✓ 已加入申请</button>`
           : isExpired
             ? `<button type="button" class="btn secondary" disabled>岗位已过期</button>`
             : `<button type="button" class="btn primary" data-add-job="${job.id}">加入申请</button>`}
@@ -258,14 +277,56 @@ function switchJobTab(tab) {
   renderJobCardGrid();
 }
 
+// 本地状态变更：立即更新，不等网络往返（乐观更新），网络同步是旁路副作用
+function setMatchStatusLocal(job, status) {
+  job.match_status = status;
+  if (status === "viewed") {
+    if (!job.viewed_at) job.viewed_at = new Date().toISOString();
+    job.applied_at = null; // 从 applied 撤销回 viewed 时清空 applied_at
+  }
+  if (status === "applied") job.applied_at = new Date().toISOString();
+  persistJobMatches();
+}
+
+// docs/api-contracts-v1.md #8 PATCH /job_matches/{id}/status
+// ⚠️ 该 Edge Function 尚未部署（v1 只上线了 parse-resume/crawl-jobs/score-jobs/
+// vetting-flags/vetting-review 5 个），函数名是按现有 kebab-case 命名习惯猜的，
+// Codex 确认部署后需要核对函数名。applied -> viewed 的回退在 v1.1 契约文字里没
+// 明确允许也没明确禁止，这里按 Steven 的要求实现，等 Codex 发 v1.2 契约确认。
+async function patchMatchStatusBackend(matchId, status) {
+  const { data, error } = await supabase.functions.invoke("job-matches-status", {
+    method: "PATCH",
+    body: { id: matchId, status }
+  });
+  if (error) throw error;
+  return data.match;
+}
+
+function syncMatchStatusToBackend(matchId, status) {
+  if (!JOBS_BACKEND_READY) return;
+  patchMatchStatusBackend(matchId, status).catch(err => {
+    console.warn("[jobs] 同步匹配状态到后端失败（本地状态已更新，不阻塞交互）:", err);
+  });
+}
+
 // 点卡片（非点按钮）标记 viewed；new -> viewed，其余状态不变
 function markJobViewed(matchId) {
   const job = jobMatches.find(j => j.match_id === matchId);
   if (!job || job.match_status !== "new") return;
-  job.match_status = "viewed";
-  job.viewed_at = new Date().toISOString();
-  persistJobMatches();
+  setMatchStatusLocal(job, "viewed");
+  syncMatchStatusToBackend(matchId, "viewed");
   renderJobCardGrid();
+}
+
+// 撤销申请：applied -> viewed（不删除 applications 表里已创建的申请记录，
+// 那是用户自己在申请看板里的数据，只回退这张卡片的匹配状态标签）
+function revokeApplication(jobId) {
+  const job = jobMatches.find(j => j.id === jobId);
+  if (!job || job.match_status !== "applied") return;
+  setMatchStatusLocal(job, "viewed");
+  syncMatchStatusToBackend(job.match_id, "viewed");
+  renderJobCardGrid();
+  showToast("已撤销申请标记");
 }
 
 // 模拟 GET /jobs/feed?refresh=true：真实版本会先服务端触发 score-jobs 再返回，耗时更长
@@ -319,8 +380,23 @@ function openJobDetail(jobId) {
   document.getElementById("jobDetailApplyLink").href = job.apply_url;
   const addBtn = document.getElementById("jobDetailAddBtn");
   addBtn.dataset.addJob = job.id;
-  addBtn.disabled = job.match_status === "applied" || job.match_status === "expired";
-  addBtn.textContent = job.match_status === "applied" ? "已加入申请" : job.match_status === "expired" ? "岗位已过期" : "加入申请看板";
+  if (job.match_status === "applied") {
+    addBtn.disabled = false;
+    addBtn.textContent = "✓ 已加入申请（点击撤销）";
+    addBtn.dataset.action = "revoke";
+    addBtn.classList.remove("primary");
+    addBtn.classList.add("secondary");
+  } else if (job.match_status === "expired") {
+    addBtn.disabled = true;
+    addBtn.textContent = "岗位已过期";
+    addBtn.dataset.action = "";
+  } else {
+    addBtn.disabled = false;
+    addBtn.textContent = "加入申请看板";
+    addBtn.dataset.action = "add";
+    addBtn.classList.remove("secondary");
+    addBtn.classList.add("primary");
+  }
   markJobViewed(job.match_id);
   openModal("jobDetailModal");
 }
@@ -345,10 +421,8 @@ async function addJobToApplications(jobId) {
     await dbUpsert(TABLE_APPLICATIONS, applicationToRow(record));
     await loadState();
     renderAll();
-    // TODO(后端就绪): 换成 await updateMatchStatus(job.match_id, "applied")
-    job.match_status = "applied";
-    job.applied_at = new Date().toISOString();
-    persistJobMatches();
+    setMatchStatusLocal(job, "applied");
+    syncMatchStatusToBackend(job.match_id, "applied");
     renderJobCardGrid();
     showToast("已加入申请看板");
     closeModal("jobDetailModal");
@@ -387,15 +461,20 @@ function initJobsModule() {
   document.getElementById("jobCardGrid").addEventListener("click", e => {
     const viewBtn = e.target.closest("[data-view-job]");
     const addBtn = e.target.closest("[data-add-job]");
+    const revokeBtn = e.target.closest("[data-revoke-job]");
     const card = e.target.closest(".job-card");
     if (viewBtn) { openJobDetail(viewBtn.dataset.viewJob); return; }
     if (addBtn) { addJobToApplications(addBtn.dataset.addJob); return; }
+    if (revokeBtn) { revokeApplication(revokeBtn.dataset.revokeJob); return; }
     // 点卡片空白处（非按钮）标记已查看
     if (card && !e.target.closest("button")) markJobViewed(card.dataset.matchId);
   });
 
   document.getElementById("jobDetailAddBtn").addEventListener("click", e => {
-    addJobToApplications(e.target.dataset.addJob);
+    const action = e.target.dataset.action;
+    const jobId = e.target.dataset.addJob;
+    if (action === "revoke") { revokeApplication(jobId); openJobDetail(jobId); } // 撤销后刷新弹窗按钮状态
+    else if (action === "add") addJobToApplications(jobId);
   });
 }
 
