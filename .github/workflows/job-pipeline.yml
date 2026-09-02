@@ -11,7 +11,7 @@ permissions:
 jobs:
   crawl:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - name: Crawl public ATS job boards
         env:
@@ -20,8 +20,16 @@ jobs:
         run: |
           test -n "$SUPABASE_URL"
           test -n "$SUPABASE_SERVICE_ROLE_KEY"
-          curl --fail-with-body --retry 3 --max-time 900 \
-            -X POST "$SUPABASE_URL/functions/v1/crawl-jobs" \
+          curl --fail-with-body --retry 3 --max-time 30 \
+            "$SUPABASE_URL/rest/v1/job_sources?enabled=eq.true&select=id" \
             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-            -H "Content-Type: application/json" \
-            --data '{"limit_per_source":500,"close_missing":true}'
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            | jq -r '.[].id' > /tmp/source_ids
+          export SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY
+          xargs -P 6 -I '{}' bash -c '\
+            curl --fail-with-body --retry 2 --max-time 120 \
+              -X POST "$SUPABASE_URL/functions/v1/crawl-jobs" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Content-Type: application/json" \
+              --data "{\"source_ids\":[\"{}\"],\"limit_per_source\":500,\"close_missing\":true}"\
+          ' < /tmp/source_ids
