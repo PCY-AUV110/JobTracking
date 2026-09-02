@@ -1,7 +1,16 @@
 # 前端开发状态（Claude Code 维护）
 
-分支：`feature/day1-resume-center`（基于 `feature/day0-security-hardening`，已含安全修复）
-工区：`/Users/p.cy/Desktop/杂货铺/jobtrack_github_demo`，本地预览用 `python3 -m http.server 8000`
+分支：`feature/day2-frontend-fixes`（已 push，基于已合并 main 的 Day1-3 前端主线）
+工区：`/Users/p.cy/Desktop/杂货铺/jobtrack-release`（独立 worktree，与主工区 `jobtrack_github_demo`、Codex 的 `jobtrack-backend` 平级），本地预览用 `python3 -m http.server 8000`
+
+## Day2：生产反馈 4 项修复（2026-09-02，已 push，等 Codex 合并 main）
+
+1. **PDF 提取报错**：本地 subpath 模拟 + 真实生产 URL（chromium+webkit 两引擎）均无法复现，判断是客户端缓存或旧 Safari worker 兼容问题。加固：加载失败自动带缓存戳重试一次；错误提示改成可操作文案；`service-worker.js` CACHE_NAME 已 bump，强制旧客户端刷新。**如果 Steven 那边还复现，需要他提供具体浏览器+版本号，以及是否是老标签页未强刷**。
+2. 岗位偏好雇佣类型精简为 Part-time / Full-time / Co-op·Intern 三项，mock 数据同步。
+3. 身份过滤开关配色：根因是 `.switch input:checked + span` 引用未定义的 `--claude-orange`（历史 dead variable），改用 `--accent`。
+4. 智能岗位卡片流：🔄刷新按钮（mock 延迟+插入新岗位）、历史记录 tab（含 expired）、4 态状态徽标（new/viewed/applied/expired）、点卡片标记 viewed、加申请自动标记 applied。字段/端点名（`GET /jobs/feed?refresh=true`、`GET /jobs/history`、`PATCH /job_matches/:id/status`）提前对齐 Codex 即将发布的契约 v1.1。
+
+commit: `d75279e`（PDF 修复第一版）→ `10a4411`（PDF 加固）→ `b733104`（雇佣类型+开关配色）→ `aa7349e`（卡片流刷新/历史/状态徽标）。
 
 ## 已做
 
