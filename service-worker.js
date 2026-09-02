@@ -1,4 +1,4 @@
-const CACHE_NAME = "offerflow-v37-oauth-backdoor";
+const CACHE_NAME = "offerflow-v38-resume-center-pdf-fix";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./admin.js", "./supabase-config.js", "./manifest.json", "./logo.svg"];
 
 self.addEventListener("install", event => {

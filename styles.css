@@ -1136,7 +1136,7 @@ button { cursor: pointer; }
   width: 48px;
   height: 27px;
   border-radius: 999px;
-  background: #D8D0C8;
+  background: #C7CDD6;
   position: relative;
   transition: .18s ease;
 }
@@ -1154,8 +1154,10 @@ button { cursor: pointer; }
   box-shadow: 0 2px 5px rgba(0,0,0,.16);
 }
 
+/* 曾经引用未定义的 --claude-orange，导致开启状态的轨道背景变成透明、
+   开关看起来像"消失"了；改用 Liquid Glass 体系的 --accent，开/关两态都有清晰对比 */
 .switch input:checked + span {
-  background: var(--claude-orange);
+  background: var(--accent);
 }
 
 .switch input:checked + span::after {
@@ -3555,7 +3557,8 @@ body.compact .cards-list { gap: 8px; }
 .job-card-actions { justify-content: flex-end; }
 
 .grade-badge,
-.risk-badge {
+.risk-badge,
+.status-badge {
   display: inline-flex;
   align-items: center;
   padding: 3px 10px;
@@ -3563,3 +3566,9 @@ body.compact .cards-list { gap: 8px; }
   font-size: 11.5px;
   font-weight: 700;
 }
+
+.job-card.is-expired {
+  opacity: .62;
+}
+
+.job-card:not(.is-expired) { cursor: pointer; }
