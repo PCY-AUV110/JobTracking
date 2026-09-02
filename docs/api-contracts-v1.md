@@ -288,7 +288,7 @@ RLS target: users can read/write only their `resumes`, `job_preferences`, and `j
 
 ## Addendum v1.1 (2026-09-02) — job feed refresh, history, card status
 
-Status: **frozen for frontend integration**. Adds a per-user "have I looked at / applied to this match" state on top of v1's job/match/vetting tables. Ownership: Claude (backend) drafted and implements; Codex (frontend) consumes.
+Status: **frozen for frontend integration**. Adds a per-user "have I looked at / applied to this match" state on top of v1's job/match/vetting tables. The contract is authoritative for both Edge Functions and frontend clients.
 
 ### Data model change
 
@@ -407,5 +407,4 @@ updateMatchStatus(matchId: string, status: "viewed" | "applied"): Promise<ApiRes
 
 `getJobFeed`/`getJobHistory` are plain `GET` invocations (`supabase.functions.invoke` supports query params via the `method`/`body` options, or a direct `fetch` to the function URL with a query string — either is fine since both require the same Authorization header). `updateMatchStatus` is a `PATCH`.
 
-Implementation note for Codex: `listMatchedJobs`/`getJobCard` from v1 are superseded by `getJobFeed`/`getJobHistory` for the feed/history views — the underlying job-card row shape is compatible (same fields), so existing card-rendering code should not need to change, only the fetch call.
-
+Implementation note: `listMatchedJobs`/`getJobCard` from v1 are superseded by `getJobFeed`/`getJobHistory` for the feed/history views — the underlying job-card row shape is compatible (same fields), so existing card-rendering code should not need to change, only the fetch call.
