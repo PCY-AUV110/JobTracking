@@ -33,8 +33,15 @@ let pdfjsModulePromise = null;
 // ============================================================
 function loadPdfJs() {
   if (!pdfjsModulePromise) {
-    pdfjsModulePromise = import("./vendor/pdfjs/pdf.min.mjs").then(mod => {
-      mod.GlobalWorkerOptions.workerSrc = "./vendor/pdfjs/pdf.worker.min.mjs";
+    // Resolve from the current document URL so GitHub Pages' /JobTracking/
+    // base path is preserved. A root-relative worker URL would 404 in production.
+    const pdfModuleUrl = new URL("vendor/pdfjs/pdf.min.mjs", document.baseURI).href;
+    const pdfWorkerUrl = new URL("vendor/pdfjs/pdf.worker.min.mjs", document.baseURI).href;
+    pdfjsModulePromise = import(pdfModuleUrl).then(mod => {
+      if (typeof mod.getDocument !== "function" || !mod.GlobalWorkerOptions) {
+        throw new Error("PDF.js 模块加载不完整，请刷新页面后重试");
+      }
+      mod.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
       return mod;
     });
   }
