@@ -438,4 +438,8 @@ updateMatchStatus(matchId: string, status: "viewed" | "applied"):
   Promise<ApiResult<{ match: JobMatchStatus }>>;
 ```
 
+Supabase transport mapping: invoke Edge Function `job-matches-status` with
+`method: "PATCH"` and body `{ "id": matchId, "status": status }`. This maps the
+logical REST route above without exposing service-role credentials.
+
 Implementation note: `listMatchedJobs`/`getJobCard` from v1 are superseded by `getJobFeed`/`getJobHistory` for the feed/history views — the underlying job-card row shape is compatible (same fields), so existing card-rendering code should not need to change, only the fetch call.
