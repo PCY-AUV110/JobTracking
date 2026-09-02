@@ -17,7 +17,11 @@ export async function user(req:Request) {
 }
 export function requireService(req:Request) {
   const token=(req.headers.get("authorization")??"").replace(/^Bearer\s+/i,"");
-  if (!service || token !== service) throw new Error("forbidden");
+  let role="";
+  try { role=JSON.parse(atob(token.split(".")[1])).role??""; } catch { /* opaque secret key */ }
+  // Gateway JWT verification already validates legacy JWT signatures. Modern
+  // opaque secret keys are compared against the runtime-provided service key.
+  if ((!service || token !== service) && role !== "service_role") throw new Error("forbidden");
 }
 export const text = (v:unknown) => typeof v === "string" ? v : "";
 export function stripHtml(v:string){return v.replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<[^>]+>/g," ").replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/\s+/g," ").trim();}
