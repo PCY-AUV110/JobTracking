@@ -13,6 +13,8 @@ Updated: 2026-09-02
 - Five backend Edge Functions implemented with shared authenticated/service-role helpers; daily public-ATS crawl workflow added.
 - All five functions deployed ACTIVE v1 with JWT verification; unauthenticated smoke test correctly returns HTTP 401.
 - Seeded the first source-verified GTA/Canada ATS board: Wealthsimple via Ashby public posting API.
+- Day 3: expanded to 43 verified ATS sources and persisted 5,959 deduplicated open jobs; funnel report is in `docs/day3-crawl-funnel.md`.
+- GitHub Actions secrets configured; OpenAI verified by a successful minimal live request.
 - Six-table migration validated against the linked Supabase project prerequisites (`update_profiles_updated_at` and `is_super_admin`) and prepared for deployment.
 - Confirmed backend ownership boundaries: `supabase/`, `.github/workflows/`, backend client wrapper, and backend docs.
 
