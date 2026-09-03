@@ -15,6 +15,8 @@ Updated: 2026-09-02
 - Seeded the first source-verified GTA/Canada ATS board: Wealthsimple via Ashby public posting API.
 - Day 3: expanded to 43 verified ATS sources and persisted 5,959 deduplicated open jobs; funnel report is in `docs/day3-crawl-funnel.md`.
 - GitHub Actions secrets configured; OpenAI verified by a successful minimal live request.
+- Day 4: crawl workflow now isolates per-source failures and writes success/failure details to the Actions run summary.
+- JWT-protected `job-feed` and `job-history` functions deployed; first feed load scores the caller's latest parsed resume on demand.
 - Six-table migration validated against the linked Supabase project prerequisites (`update_profiles_updated_at` and `is_super_admin`) and prepared for deployment.
 - Confirmed backend ownership boundaries: `supabase/`, `.github/workflows/`, backend client wrapper, and backend docs.
 

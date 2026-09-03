@@ -442,4 +442,10 @@ Supabase transport mapping: invoke Edge Function `job-matches-status` with
 `method: "PATCH"` and body `{ "id": matchId, "status": status }`. This maps the
 logical REST route above without exposing service-role credentials.
 
+Feed transport mapping: logical `GET /jobs/feed` and `GET /jobs/history` map to
+JWT-protected Edge Functions `job-feed` and `job-history`. `job-feed` resolves
+the caller's latest parsed resume and invokes `score-jobs` automatically when
+that resume has no matches (or when `refresh=true`), so the first real feed load
+produces matches without a separate frontend scoring call.
+
 Implementation note: `listMatchedJobs`/`getJobCard` from v1 are superseded by `getJobFeed`/`getJobHistory` for the feed/history views — the underlying job-card row shape is compatible (same fields), so existing card-rendering code should not need to change, only the fetch call.
