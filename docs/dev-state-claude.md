@@ -3,6 +3,12 @@
 分支：`feature/day4-frontend`（已 push，从最新 main 切出）
 工区：`/Users/p.cy/Desktop/杂货铺/jobtrack-release`（独立 worktree，与主工区 `jobtrack_github_demo`、Codex 的 `jobtrack-backend` 平级），本地预览用 `python3 -m http.server 8000`
 
+## Day4 收口（2026-09-02 深夜，已 push，commit `3f5ab50`）
+
+Codex 部署确认：真实 slug 是 `job-feed`/`job-history`（不是我猜的 `jobs-feed`/`jobs-history`）。已改 `callJobsReadFunction` 两处调用、`JOBS_FEED_BACKEND_READY` 置 true、清理了文件里几处已经过时的"还没部署"注释（之前有个大段头部注释因为编辑指令没匹配上，一直没跟着状态更新，这次一并修了）。`mapFeedRow` 逐字段核对过 v1.1 响应示例，16 个字段全部对得上，没改。
+
+**两个开关现在都是 true**：`JOBS_BACKEND_READY`（状态写入）和 `JOBS_FEED_BACKEND_READY`（岗位流/历史读取）。`node --check` 通过，本地验证了未登录态下 feed/history/刷新按钮都给清楚的登录提示、没有 mock 数据泄漏、偏好页和简历中心不受影响。**真实登录态端到端验收做不了**（本机没账号），按计划由 Codex review 合并后 Steven 验收。
+
 ## Day4：mock 开关切真实后端（2026-09-02，已 push）
 
 **核实到的后端现状**（直接读 `supabase/functions/` 目录，不是听转述）：`job-matches-status`（viewed/applied 状态写入）已部署，main 已经确认 `db36ab0` 把这部分打开了；但 `jobs-feed`/`jobs-history`（读取岗位流/历史）**这次提交时还没有对应目录**，没部署。所以把原来一个 `JOBS_BACKEND_READY` 开关拆成两个：
