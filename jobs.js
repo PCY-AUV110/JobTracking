@@ -23,6 +23,7 @@ const JOB_PREF_STORAGE_KEY = "offerflow_mock_job_preferences_v3";
 // 的 RESUME_BACKEND_READY 一个模式：先把真实调用写好、挂在开关后面，Codex 确认
 // 函数部署好、v1.2 的 applied->viewed 回退规则定下来后，把开关打开即可。
 const JOBS_BACKEND_READY = true;
+const JOBS_FEED_BACKEND_READY = false; // TODO(Day4): Codex confirms jobs-feed/jobs-history ACTIVE in chat, then set true
 
 // 契约里 llm_grade 是 A|B|C|D|E|F 六档
 const MATCH_GRADE_STYLE = {
@@ -172,7 +173,20 @@ function handlePrefSaveClick() {
 // ============================================================
 // 智能岗位卡片流：本地存储读写（字段名对齐 job_matches 表 + jobs/vetting_reviews 联查）
 // ============================================================
-function loadJobMatches() {
+async function loadJobMatches() {
+  if (JOBS_FEED_BACKEND_READY) {
+    if (!currentUser) { jobMatches = []; return jobMatches; }
+    const riskFilter = document.getElementById("jobRiskFilter").value;
+    const statusFilter = document.getElementById("jobStatusFilter").value;
+    const params = {
+      risk_rating: riskFilter === "all" ? undefined : riskFilter,
+      status: statusFilter === "all" ? undefined : statusFilter
+    };
+    const result = currentJobTab === "history" ? await getJobHistory(params) : await getJobFeed(params);
+    jobMatches = (result.jobs || []).map(mapFeedRow);
+    return jobMatches;
+  }
+
   try {
     const raw = localStorage.getItem(JOB_MATCHES_STORAGE_KEY);
     jobMatches = raw ? JSON.parse(raw) : null;
@@ -193,8 +207,63 @@ function loadJobMatches() {
 }
 
 function persistJobMatches() {
-  // TODO(后端就绪): getJobFeed()/getJobHistory() 直接从服务端返回，不需要本地持久化
+  // 只有 mock 路径才需要本地持久化；JOBS_FEED_BACKEND_READY=true 时数据直接来自服务端
+  if (JOBS_FEED_BACKEND_READY) return;
   localStorage.setItem(JOB_MATCHES_STORAGE_KEY, JSON.stringify(jobMatches));
+}
+
+// docs/api-contracts-v1.md #6/#7 GET /jobs/feed、GET /jobs/history
+// ⚠️ Edge Function 名字是按 job-matches-status 的 kebab-case 命名习惯猜的
+// （jobs-feed / jobs-history），契约文档没有点名具体 slug，Codex 确认部署后
+// 如果实际名字不一样，只需要改这两个函数里的字符串。
+async function callJobsReadFunction(name, params) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const query = new URLSearchParams(
+    Object.entries(params || {}).filter(([, v]) => v !== undefined && v !== null && v !== "")
+  ).toString();
+  const res = await fetch(`${getFunctionsBase()}/${name}${query ? `?${query}` : ""}`, {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${session?.access_token || SUPABASE_ANON_KEY}`
+    }
+  });
+  const body = await res.json();
+  if (!res.ok || body.error) throw new Error(body.error?.message || body.error || `请求失败（${res.status}）`);
+  return body.data;
+}
+
+async function getJobFeed(params) {
+  return callJobsReadFunction("jobs-feed", params);
+}
+
+async function getJobHistory(params) {
+  return callJobsReadFunction("jobs-history", params);
+}
+
+// 契约里 feed/history 行没有 ats_type（来源字段是 mock 阶段自己加的展示信息），
+// 真实数据里“来源”这一格就先不显示，而不是显示 undefined
+function mapFeedRow(row) {
+  return {
+    id: row.job_id,
+    match_id: row.match_id,
+    company_legal_name: row.company_legal_name,
+    title: row.title,
+    location_city: row.location_city,
+    salary_raw: row.salary_raw,
+    jd_summary: row.jd_summary,
+    apply_url: row.apply_url,
+    employment_type: row.employment_type,
+    llm_grade: row.llm_grade,
+    llm_score: row.llm_score,
+    risk_rating: row.risk_rating,
+    vetting_status: row.vetting_status,
+    match_status: row.match_status,
+    job_status: row.job_status,
+    viewed_at: row.viewed_at,
+    applied_at: row.applied_at,
+    ats_type: row.ats_type || null,
+    created_at: row.created_at || null
+  };
 }
 
 function getFilteredSortedJobs() {
@@ -212,8 +281,8 @@ function getFilteredSortedJobs() {
   const sorters = {
     match: (a, b) => b.llm_score - a.llm_score,
     risk: (a, b) => riskRank[a.risk_rating] - riskRank[b.risk_rating],
-    location: (a, b) => a.location_city.localeCompare(b.location_city, "zh-CN"),
-    source: (a, b) => a.ats_type.localeCompare(b.ats_type, "zh-CN")
+    location: (a, b) => (a.location_city || "").localeCompare(b.location_city || "", "zh-CN"),
+    source: (a, b) => (a.ats_type || "").localeCompare(b.ats_type || "", "zh-CN")
   };
   if (currentJobTab === "history") {
     jobs = [...jobs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -241,7 +310,7 @@ function jobCardHtml(job) {
         <span>${escapeHtml(job.salary_raw)}</span>
         <span class="risk-badge" style="background:${risk.bg};color:${risk.color}">${risk.label}</span>
         <span class="status-badge" style="background:${statusStyle.bg};color:${statusStyle.color}">${statusStyle.label}</span>
-        <span class="small-muted">来源 ${escapeHtml(ATS_LABELS[job.ats_type] || job.ats_type)}</span>
+        ${job.ats_type ? `<span class="small-muted">来源 ${escapeHtml(ATS_LABELS[job.ats_type] || job.ats_type)}</span>` : ""}
       </div>
       <p class="job-card-requirements">${escapeHtml(job.jd_summary)}</p>
       <div class="card-actions job-card-actions">
@@ -256,11 +325,23 @@ function jobCardHtml(job) {
   `;
 }
 
-function renderJobCardGrid() {
-  loadJobMatches();
+async function renderJobCardGrid() {
   const grid = document.getElementById("jobCardGrid");
   if (!grid) return;
-  const jobs = getFilteredSortedJobs();
+
+  if (JOBS_FEED_BACKEND_READY && !currentUser) {
+    grid.innerHTML = `<div class="empty-state">请先登录后查看智能岗位推荐。</div>`;
+    return;
+  }
+
+  let jobs;
+  try {
+    await loadJobMatches();
+    jobs = getFilteredSortedJobs();
+  } catch (err) {
+    grid.innerHTML = `<div class="empty-state">岗位加载失败：${escapeHtml(err?.message || String(err))}</div>`;
+    return;
+  }
   if (!jobs.length) {
     grid.innerHTML = `<div class="empty-state">${currentJobTab === "history" ? "还没有历史推荐记录。" : "当前筛选条件下没有匹配的岗位。"}</div>`;
     return;
@@ -329,14 +410,22 @@ function revokeApplication(jobId) {
   showToast("已撤销申请标记");
 }
 
-// 模拟 GET /jobs/feed?refresh=true：真实版本会先服务端触发 score-jobs 再返回，耗时更长
 async function refreshJobFeed() {
-  loadJobMatches();
   const btn = document.getElementById("jobRefreshBtn");
   btn.disabled = true;
   const originalText = btn.textContent;
   btn.textContent = "🔄 刷新中…";
   try {
+    if (JOBS_FEED_BACKEND_READY) {
+      if (!currentUser) { showToast("请先登录后再刷新岗位推荐"); return; }
+      const result = await getJobFeed({ refresh: true });
+      jobMatches = (result.jobs || []).map(mapFeedRow);
+      renderJobCardGrid();
+      showToast(result.refreshed ? "已刷新岗位推荐" : "岗位库已是最新");
+      return;
+    }
+
+    await loadJobMatches();
     await new Promise(resolve => setTimeout(resolve, 700));
     const existingIds = new Set(jobMatches.map(j => j.id));
     const nextBatch = MOCK_REFRESH_POOL.filter(j => !existingIds.has(j.id)).slice(0, 1);
@@ -351,6 +440,8 @@ async function refreshJobFeed() {
     persistJobMatches();
     renderJobCardGrid();
     showToast(`已拉取 ${nextBatch.length} 个新岗位`);
+  } catch (err) {
+    showToast("刷新失败：" + (err?.message || "未知错误"));
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
@@ -373,7 +464,7 @@ function openJobDetail(jobId) {
     <p><strong>地点：</strong>${escapeHtml(job.location_city)}</p>
     <p><strong>薪资：</strong>${escapeHtml(job.salary_raw)}</p>
     <p><strong>雇佣类型：</strong>${escapeHtml(job.employment_type)}</p>
-    <p><strong>来源：</strong>${escapeHtml(ATS_LABELS[job.ats_type] || job.ats_type)}</p>
+    ${job.ats_type ? `<p><strong>来源：</strong>${escapeHtml(ATS_LABELS[job.ats_type] || job.ats_type)}</p>` : ""}
     <p><strong>核心要求：</strong>${escapeHtml(job.jd_summary)}</p>
     <p class="small-muted" style="margin-top:14px">JD 原文（jd_raw）与匹配差距分析（job_matches.gaps）等真实 score-jobs 数据接入后展示，目前为本地演示数据占位。</p>
   `;
@@ -411,7 +502,7 @@ async function addJobToApplications(jobId) {
     status: "准备申请",
     appliedDate: new Date().toISOString().slice(0, 10),
     location: job.location_city,
-    source: `智能岗位推荐 · ${ATS_LABELS[job.ats_type] || job.ats_type}`,
+    source: job.ats_type ? `智能岗位推荐 · ${ATS_LABELS[job.ats_type] || job.ats_type}` : "智能岗位推荐",
     jobUrl: job.apply_url,
     notes: `匹配等级 ${job.llm_grade}（${job.llm_score} 分）· 背调风险：${(RISK_STYLE[job.risk_rating] || {}).label || job.risk_rating}\n核心要求：${job.jd_summary}`,
     createdAt: Date.now(),

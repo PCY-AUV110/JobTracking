@@ -1,19 +1,19 @@
 // ============================================================
-// resumes.js — 简历中心模块（Day1-3）
+// resumes.js — 简历中心模块
 // 职责：PDF 上传 → 客户端提取文本 → 结构化结果编辑 → 多简历版本管理
-// 依赖：全局 escapeHtml、showToast、formatTimestamp（来自 app.js）
+// 依赖：全局 escapeHtml、showToast、formatTimestamp、currentUser、dbGetAll（来自 app.js）
 //
-// ⚠️ Mock 说明：契约已在 docs/api-contracts-v1.md（Codex，2026-09-02 frozen）
-// 定稿，但 resumes 表 migration 还没跑到生产库，所以字段形状已经对齐契约，
-// 数据来源仍是 localStorage + 本地关键词启发式解析。RESUME_BACKEND_READY
-// 打开后，callParseResumeBackend() 走 supabase.functions.invoke("parse-resume", ...)，
-// 渲染/存储逻辑不需要改，因为 resumeDraft 的 education/experience 已经是
-// 契约里的 {institution/credential/field/...} / {company/title/highlights/...}
-// 结构化对象，不是简单字符串数组。
+// Day4：resumes 表 + parse-resume 已上线，RESUME_BACKEND_READY=true。
+// ⚠️ 已知缺口（不在本次范围，先如实记录，不假装做了）：
+// 1. resumes 表没有 is_default 列，"默认简历"目前只在本地 localStorage 记一个
+//    id（RESUME_DEFAULT_ID_KEY），不是服务端字段，换设备/清缓存会丢默认标记。
+// 2. 契约里没有"更新已解析简历结构化字段"的接口（parse-resume 只能整段重新解析），
+//    所以后端就绪后编辑入口先隐藏，不假装保存能生效——真编辑要等 Codex 出接口。
 // ============================================================
 
-const RESUME_BACKEND_READY = false; // TODO(Day2): Codex 的 resumes 表 + parse-resume 就绪后置为 true 并接入 dbGetAll/dbUpsert
+const RESUME_BACKEND_READY = true;
 const RESUME_MOCK_STORAGE_KEY = "offerflow_mock_resumes_v1";
+const RESUME_DEFAULT_ID_KEY = "offerflow_default_resume_id";
 
 const RESUME_SECTION_KEYWORDS = {
   skills: ["技能", "专业技能", "技能特长", "skills", "technical skills"],
@@ -240,32 +240,47 @@ async function handleResumeParseClick() {
     showResumeMessage("error", "提取文本为空，请检查文件内容。");
     return;
   }
+  if (RESUME_BACKEND_READY && !currentUser) {
+    showResumeMessage("error", "请先登录后再上传简历解析——未登录状态下无法调用简历解析服务。");
+    return;
+  }
   document.getElementById("resumeLoading").hidden = false;
   document.getElementById("resumeResultStep").hidden = true;
   showResumeMessage(null);
   try {
-    // TODO(Day2): 替换为 await callAIFunction("parse-resume", { raw_text: text, filename })
-    resumeDraft = RESUME_BACKEND_READY
-      ? await callParseResumeBackend(text, resumeSelectedFile?.name || "resume.pdf")
-      : mockParseResumeText(text);
+    let parsedResumeId = null;
+    if (RESUME_BACKEND_READY) {
+      const resume = await callParseResumeBackend(text, resumeSelectedFile?.name || "resume.pdf");
+      resumeDraft = resume.parsed;
+      parsedResumeId = resume.id;
+    } else {
+      resumeDraft = mockParseResumeText(text);
+    }
     resumeDraft.rawText = text;
     resumeDraft.filename = resumeSelectedFile?.name || "resume.pdf";
+    resumeDraft.id = parsedResumeId; // 后端就绪时，parse-resume 已经把这条记录落库了，这里只是把真实 id 带回来
     renderResumeDraft();
     document.getElementById("resumeResultStep").hidden = false;
   } catch (err) {
-    showResumeMessage("error", "解析失败：" + (err.message || err));
+    const msg = err?.message || String(err);
+    showResumeMessage(
+      "error",
+      /unauthenticated|401/i.test(msg)
+        ? "请先登录后再上传简历解析。"
+        : "解析失败：" + msg
+    );
   } finally {
     document.getElementById("resumeLoading").hidden = true;
   }
 }
 
-// docs/api-contracts-v1.md #1 parse-resume（此函数在 RESUME_BACKEND_READY=true 前不会被调用）
+// docs/api-contracts-v1.md #1 parse-resume
 async function callParseResumeBackend(rawText, filename) {
   const { data, error } = await supabase.functions.invoke("parse-resume", {
     body: { filename, raw_text: rawText, locale: "en-CA" }
   });
   if (error) throw error;
-  return data.resume.parsed;
+  return data.resume; // { id, filename, status, parsed, created_at }
 }
 
 function renderResumeDraft() {
@@ -328,6 +343,17 @@ function collectDraftFromForm() {
 
 function handleResumeSaveClick() {
   if (!resumeDraft) return;
+
+  if (RESUME_BACKEND_READY) {
+    // parse-resume 已经把这条记录写进 resumes 表了，"保存"这一步不需要再插一条。
+    // 表单里对技能/教育/经历的手动修改目前不会回传服务端——契约里没有"更新已解析
+    // 字段"的接口，只有整段重新解析。如实告知用户，而不是假装保存生效。
+    showToast("简历已保存到你的账户（手动修改的字段展示用，暂未同步到服务端，等接口就绪）");
+    resetResumeUploadFlow();
+    renderResumeVersionList();
+    return;
+  }
+
   const finalDraft = collectDraftFromForm();
   loadResumeVersions();
 
@@ -349,7 +375,7 @@ function handleResumeSaveClick() {
       experience: finalDraft.experience || [],
       certifications: finalDraft.certifications || [],
       languages: finalDraft.languages || [],
-      status: RESUME_BACKEND_READY ? "parsed" : "mock_parsed",
+      status: "mock_parsed",
       isDefault: isFirst,
       createdAt: new Date().toISOString()
     });
@@ -364,10 +390,55 @@ function handleResumeSaveClick() {
 // ============================================================
 // 简历版本列表
 // ============================================================
-function renderResumeVersionList() {
-  loadResumeVersions();
+function getDefaultResumeId() {
+  return localStorage.getItem(RESUME_DEFAULT_ID_KEY);
+}
+
+function setDefaultResumeId(id) {
+  localStorage.setItem(RESUME_DEFAULT_ID_KEY, id);
+}
+
+// resumes 表没有 is_default 列，用真实 id 在本地记一个"当前默认"（见文件头已知缺口 #1）
+async function listResumesBackend() {
+  return dbGetAll("resumes", row => ({
+    id: row.id,
+    filename: row.filename,
+    rawText: row.raw_text,
+    contact: row.parsed?.contact || {},
+    summary: row.parsed?.summary || "",
+    skills: row.parsed?.skills || [],
+    education: row.parsed?.education || [],
+    experience: row.parsed?.experience || [],
+    certifications: row.parsed?.certifications || [],
+    languages: row.parsed?.languages || [],
+    status: row.status,
+    createdAt: row.created_at
+  }));
+}
+
+async function renderResumeVersionList() {
   const list = document.getElementById("resumeVersionList");
   if (!list) return;
+
+  if (RESUME_BACKEND_READY) {
+    if (!currentUser) {
+      list.innerHTML = `<div class="empty-state">请先登录后查看你的简历版本。</div>`;
+      return;
+    }
+    let resumes;
+    try {
+      resumes = await listResumesBackend();
+    } catch (err) {
+      list.innerHTML = `<div class="empty-state">简历列表加载失败：${escapeHtml(err?.message || String(err))}</div>`;
+      return;
+    }
+    resumes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    let defaultId = getDefaultResumeId();
+    if (!defaultId && resumes.length) { defaultId = resumes[0].id; setDefaultResumeId(defaultId); }
+    resumeVersions = resumes.map(r => ({ ...r, isDefault: r.id === defaultId }));
+  } else {
+    loadResumeVersions();
+  }
 
   if (!resumeVersions.length) {
     list.innerHTML = `<div class="empty-state">还没有保存任何简历版本，上传一份 PDF 简历开始吧。</div>`;
@@ -388,7 +459,7 @@ function renderResumeVersionList() {
       </div>
       <div class="card-actions">
         ${!resume.isDefault ? `<button class="btn secondary" data-set-default="${resume.id}">设为默认</button>` : ""}
-        <button class="icon-btn" title="编辑" data-edit-resume="${resume.id}">✎</button>
+        ${RESUME_BACKEND_READY ? "" : `<button class="icon-btn" title="编辑" data-edit-resume="${resume.id}">✎</button>`}
         <button class="icon-btn" title="删除" data-delete-resume="${resume.id}">⌫</button>
       </div>
     </article>
@@ -396,6 +467,7 @@ function renderResumeVersionList() {
 }
 
 function editResumeVersion(id) {
+  // 后端就绪时编辑入口本来就不渲染（见 renderResumeVersionList），这里只保留 mock 路径
   loadResumeVersions();
   const resume = resumeVersions.find(r => r.id === id);
   if (!resume) return;
@@ -416,6 +488,12 @@ function editResumeVersion(id) {
 }
 
 function setDefaultResumeVersion(id) {
+  if (RESUME_BACKEND_READY) {
+    setDefaultResumeId(id);
+    renderResumeVersionList();
+    showToast("已更新默认简历");
+    return;
+  }
   loadResumeVersions();
   resumeVersions = resumeVersions.map(r => ({ ...r, isDefault: r.id === id }));
   persistResumeVersions();
@@ -423,8 +501,22 @@ function setDefaultResumeVersion(id) {
   showToast("已更新默认简历");
 }
 
-function deleteResumeVersion(id) {
+async function deleteResumeVersion(id) {
   if (!confirm("确定删除这份简历版本吗？此操作不可撤销。")) return;
+
+  if (RESUME_BACKEND_READY) {
+    try {
+      const { error } = await supabase.from("resumes").delete().eq("id", id);
+      if (error) throw error;
+      if (getDefaultResumeId() === id) localStorage.removeItem(RESUME_DEFAULT_ID_KEY);
+      renderResumeVersionList();
+      showToast("已删除该简历版本");
+    } catch (err) {
+      showToast("删除失败：" + (err?.message || "未知错误"));
+    }
+    return;
+  }
+
   loadResumeVersions();
   const wasDefault = resumeVersions.find(r => r.id === id)?.isDefault;
   resumeVersions = resumeVersions.filter(r => r.id !== id);
