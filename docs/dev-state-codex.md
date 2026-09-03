@@ -1,6 +1,6 @@
 # Codex backend development state
 
-Updated: 2026-09-02
+Updated: 2026-09-03
 
 ## Done
 
@@ -16,6 +16,7 @@ Updated: 2026-09-02
 - Day 3: expanded to 43 verified ATS sources and persisted 5,959 deduplicated open jobs; funnel report is in `docs/day3-crawl-funnel.md`.
 - GitHub Actions secrets configured; OpenAI verified by a successful minimal live request.
 - Day 4: crawl workflow now isolates per-source failures and writes success/failure details to the Actions run summary.
+- Day 4 production crawl run `33766630211` completed successfully: 32/43 sources succeeded, 11 resource-limited sources were isolated, 3,690 postings were fetched, and the production catalog reached 6,393 jobs.
 - JWT-protected `job-feed` and `job-history` functions deployed; first feed load scores the caller's latest parsed resume on demand.
 - Day 4 production smoke passed with an ephemeral Auth user: `parse-resume` persisted one parsed resume, `score-jobs` created one passing match with one LLM call, and both feed/history returned it; the test user was deleted afterward.
 - Six-table migration validated against the linked Supabase project prerequisites (`update_profiles_updated_at` and `is_super_admin`) and prepared for deployment.
@@ -23,13 +24,13 @@ Updated: 2026-09-02
 
 ## In progress
 
-- Merge current `main`, complete final diff review, and publish backend core.
+- Day 4 is deployed; handoff is waiting for Steven's authenticated browser acceptance test with his own resume.
 
 ## Next
 
-1. Add vetted GTA/ATS `job_sources` seed data with source evidence.
-2. Implement `crawl-jobs`, then `parse-resume`, `score-jobs`, `vetting-flags`, and `vetting-review`.
-3. Add the daily GitHub Actions chain and run one milestone-level integration test on port 8001.
+1. Wire the frontend's feed/history client from mock mode to the deployed `job-feed` and `job-history` functions.
+2. Have Steven upload a real resume and verify parsed content, generated matches, and card rendering in his authenticated session.
+3. Reduce resource pressure for the 11 oversized ATS boards through pagination/chunking without weakening partial-success semantics.
 
 ## Blockers / decisions
 
