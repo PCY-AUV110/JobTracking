@@ -1,7 +1,21 @@
 # 前端开发状态（Claude Code 维护）
 
-分支：`feature/day3-frontend`（已 push，从最新 main 切出，main 此时已含 Day1-3 前端主线 + Day2 修复 + 后端 v1 五个 Edge Function）
+分支：`feature/day4-frontend`（已 push，从最新 main 切出）
 工区：`/Users/p.cy/Desktop/杂货铺/jobtrack-release`（独立 worktree，与主工区 `jobtrack_github_demo`、Codex 的 `jobtrack-backend` 平级），本地预览用 `python3 -m http.server 8000`
+
+## Day4：mock 开关切真实后端（2026-09-02，已 push）
+
+**核实到的后端现状**（直接读 `supabase/functions/` 目录，不是听转述）：`job-matches-status`（viewed/applied 状态写入）已部署，main 已经确认 `db36ab0` 把这部分打开了；但 `jobs-feed`/`jobs-history`（读取岗位流/历史）**这次提交时还没有对应目录**，没部署。所以把原来一个 `JOBS_BACKEND_READY` 开关拆成两个：
+- `JOBS_BACKEND_READY = true`：控制 viewed/applied 状态同步，已确认可用，不用等。
+- `JOBS_FEED_BACKEND_READY = false`：控制岗位流/历史的真实读取，真实调用代码已经按契约写好（猜测的 Edge Function 名字是 `jobs-feed`/`jobs-history`，kebab-case 跟 `job-matches-status` 一个习惯，契约文档没点名具体 slug，Codex 确认部署后如果实际名字不一样只需要改 `callJobsReadFunction` 里那两个字符串），**等 Codex 在群里报 ACTIVE 后把这个改成 true 就行，不用再改别的地方**。
+
+`resumes.js` 的 `RESUME_BACKEND_READY` 已经置 true（`parse-resume` 函数 + `resumes` 表都确认部署了）：上传 PDF → 提取文本 → 真实调用 parse-resume → 落库，这条链路走通了；未登录时上传解析和查看简历列表都会给出明确的"请先登录"提示，不会报原始错误或空白。
+
+**记录两个诚实的已知缺口（没有假装做了）**：
+1. `resumes` 表没有 `is_default` 列，"默认简历"只在浏览器本地记一个 id，换设备/清缓存会丢，不是服务端字段。
+2. 契约里没有"更新已解析简历字段"的接口（`parse-resume` 只能整段重新解析），所以真实后端模式下编辑按钮直接隐藏了，没有做一个点了没用的假按钮。
+
+**没做完的部分，如实说**：Steven 要的"生产 URL 端到端验收（上传简历→feed 出真实岗位→点卡片 viewed→加入申请→撤销，硬刷新后仍持久化）"这次做不完整——这个分支还没部署到生产，而且本机没有真实登录账号，没法登录后走全链路。已经验证了：mock 模式下所有交互没有回归（关掉 feed 开关时行为和 Day3 一致）、未登录态的简历中心提示清楚、toggle 逻辑在异步改造后没坏。真正的端到端验收需要等这个分支部署上线 + 有真实账号的人（比如 Steven）登录跑一遍，或者告诉我一个测试账号的邮箱密码我来跑。
 
 ## Day3：新需求 2 项（2026-09-02，已 push，等 Codex 合并 main）
 
