@@ -17,6 +17,7 @@ Updated: 2026-09-02
 - GitHub Actions secrets configured; OpenAI verified by a successful minimal live request.
 - Day 4: crawl workflow now isolates per-source failures and writes success/failure details to the Actions run summary.
 - JWT-protected `job-feed` and `job-history` functions deployed; first feed load scores the caller's latest parsed resume on demand.
+- Day 4 production smoke passed with an ephemeral Auth user: `parse-resume` persisted one parsed resume, `score-jobs` created one passing match with one LLM call, and both feed/history returned it; the test user was deleted afterward.
 - Six-table migration validated against the linked Supabase project prerequisites (`update_profiles_updated_at` and `is_super_admin`) and prepared for deployment.
 - Confirmed backend ownership boundaries: `supabase/`, `.github/workflows/`, backend client wrapper, and backend docs.
 
