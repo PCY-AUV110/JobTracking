@@ -1,29 +1,23 @@
 // ============================================================
-// jobs.js — 岗位偏好 + 智能岗位卡片流模块（Day4+）
-// 职责：偏好设置表单、mock 岗位卡片渲染/筛选排序、刷新/历史、加入申请看板
+// jobs.js — 岗位偏好 + 智能岗位卡片流模块
+// 职责：偏好设置表单、岗位卡片渲染/筛选排序、刷新/历史、加入申请看板
 // 依赖：全局 escapeHtml、showToast、openModal、closeModal、dbUpsert、
-//       TABLE_APPLICATIONS、applicationToRow、loadState、renderAll（来自 app.js）
+//       TABLE_APPLICATIONS、applicationToRow、loadState、renderAll、
+//       currentUser、getFunctionsBase、SUPABASE_ANON_KEY（来自 app.js）
 //
-// ⚠️ Mock 说明：字段名和端点形状按 Codex 即将发布的契约 v1.1 对齐——
-// GET /jobs/feed?refresh=true、GET /jobs/history、PATCH /job_matches/:id/status，
-// match 状态机 new -> viewed -> applied，expired 由服务端判定。真实契约落地后：
-// ①把 loadJobMatches()/persistJobMatches() 换成 getJobFeed()/getJobHistory()
-//   两个 fetch 调用；②refreshJobFeed() 里的假延迟+假新增换成真的
-//   getJobFeed({refresh:true})；③markJobViewed()/addJobToApplications() 里
-//   本地改 status 的部分换成 updateMatchStatus(matchId, status)。
-// 渲染层（jobCardHtml/renderJobCardGrid）不需要跟着重写。
+// Day4 收口：两个后端开关都已确认部署并置 true——
+// - JOBS_BACKEND_READY：PATCH job-matches-status（viewed/applied 写入）。
+// - JOBS_FEED_BACKEND_READY：GET job-feed / GET job-history（岗位流/历史读取），
+//   真实 slug 是 job-feed/job-history（不是命名习惯猜的 jobs-feed/jobs-history）。
+// MOCK_JOB_SEED/MOCK_REFRESH_POOL 只在两个开关关闭时的本地演示路径里使用，
+// 后端异常时不会自动回退到 mock（避免真出问题时界面看起来"正常"掩盖故障）。
 // ============================================================
 
 const JOB_MATCHES_STORAGE_KEY = "offerflow_mock_job_matches_v1";
 const JOB_PREF_STORAGE_KEY = "offerflow_mock_job_preferences_v3";
 
-// GET /jobs/feed、GET /jobs/history、PATCH /job_matches/:id/status 在契约 v1.1
-// 里已冻结，但对应的 Edge Function 还没有实际部署（只有 parse-resume/crawl-jobs/
-// score-jobs/vetting-flags/vetting-review 这 5 个 v1 函数上线了）。跟 resumes.js
-// 的 RESUME_BACKEND_READY 一个模式：先把真实调用写好、挂在开关后面，Codex 确认
-// 函数部署好、v1.2 的 applied->viewed 回退规则定下来后，把开关打开即可。
 const JOBS_BACKEND_READY = true;
-const JOBS_FEED_BACKEND_READY = false; // TODO(Day4): Codex confirms jobs-feed/jobs-history ACTIVE in chat, then set true
+const JOBS_FEED_BACKEND_READY = true; // Day4 收口：Codex 确认 job-feed/job-history 已部署 ACTIVE v1，JWT 开启
 
 // 契约里 llm_grade 是 A|B|C|D|E|F 六档
 const MATCH_GRADE_STYLE = {
@@ -52,8 +46,8 @@ const MATCH_STATUS_STYLE = {
 
 const ATS_LABELS = { greenhouse: "Greenhouse", lever: "Lever", ashby: "Ashby", workday: "Workday" };
 
-// 本地演示岗位种子数据，字段名对齐 jobs/job_matches/vetting_reviews 三表联查后的岗位卡片形状
-// （等 Codex 的 getJobFeed()/getJobHistory() 就位后替换为真实数据）
+// 本地演示岗位种子数据——JOBS_FEED_BACKEND_READY=true 时不再使用，只在关掉
+// 开关做本地回归测试时才会用到（见 loadJobMatches()）
 const MOCK_JOB_SEED = [
   { id: "job-1", company_legal_name: "Shopify Inc.", title: "Data Analyst Intern", location_city: "Toronto, ON", salary_raw: "CAD 28-32/hr", jd_summary: "SQL、Python、有电商数据分析经验优先", employment_type: "Co-op·Intern", llm_grade: "A", llm_score: 92, risk_rating: "low", ats_type: "greenhouse", apply_url: "https://www.shopify.com/careers", match_status: "new" },
   { id: "job-2", company_legal_name: "Royal Bank of Canada", title: "Technology Summer Analyst", location_city: "Toronto, ON", salary_raw: "CAD 26-30/hr", jd_summary: "计算机/统计相关专业，需加拿大工作授权", employment_type: "Co-op·Intern", llm_grade: "B", llm_score: 78, risk_rating: "medium", ats_type: "workday", apply_url: "https://jobs.rbc.com/", match_status: "viewed" },
@@ -213,9 +207,9 @@ function persistJobMatches() {
 }
 
 // docs/api-contracts-v1.md #6/#7 GET /jobs/feed、GET /jobs/history
-// ⚠️ Edge Function 名字是按 job-matches-status 的 kebab-case 命名习惯猜的
-// （jobs-feed / jobs-history），契约文档没有点名具体 slug，Codex 确认部署后
-// 如果实际名字不一样，只需要改这两个函数里的字符串。
+// Edge Function 真实 slug 是 job-feed / job-history（Codex Day4 收口确认，
+// 不是我之前按命名习惯猜的 jobs-feed/jobs-history）。ACTIVE v1，JWT 开启，
+// 首次 feed 无匹配会服务端自动触发 score-jobs。
 async function callJobsReadFunction(name, params) {
   const { data: { session } } = await supabase.auth.getSession();
   const query = new URLSearchParams(
@@ -233,11 +227,11 @@ async function callJobsReadFunction(name, params) {
 }
 
 async function getJobFeed(params) {
-  return callJobsReadFunction("jobs-feed", params);
+  return callJobsReadFunction("job-feed", params);
 }
 
 async function getJobHistory(params) {
-  return callJobsReadFunction("jobs-history", params);
+  return callJobsReadFunction("job-history", params);
 }
 
 // 契约里 feed/history 行没有 ats_type（来源字段是 mock 阶段自己加的展示信息），
@@ -369,11 +363,9 @@ function setMatchStatusLocal(job, status) {
   persistJobMatches();
 }
 
-// docs/api-contracts-v1.md #8 PATCH /job_matches/{id}/status
-// ⚠️ 该 Edge Function 尚未部署（v1 只上线了 parse-resume/crawl-jobs/score-jobs/
-// vetting-flags/vetting-review 5 个），函数名是按现有 kebab-case 命名习惯猜的，
-// Codex 确认部署后需要核对函数名。applied -> viewed 的回退在 v1.1 契约文字里没
-// 明确允许也没明确禁止，这里按 Steven 的要求实现，等 Codex 发 v1.2 契约确认。
+// docs/api-contracts-v1.md #8 PATCH /job_matches/{id}/status，函数名 job-matches-status
+// 已部署确认（Day4，commit db36ab0）。applied -> viewed 回退已在 v1.2 契约里
+// 明确允许（幂等，清空 applied_at、保留/设置 viewed_at）。
 async function patchMatchStatusBackend(matchId, status) {
   const { data, error } = await supabase.functions.invoke("job-matches-status", {
     method: "PATCH",
