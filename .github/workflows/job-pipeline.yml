@@ -14,22 +14,60 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Crawl public ATS job boards
+        id: crawl
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           test -n "$SUPABASE_URL"
           test -n "$SUPABASE_SERVICE_ROLE_KEY"
-          curl --fail-with-body --retry 3 --max-time 30 \
-            "$SUPABASE_URL/rest/v1/job_sources?enabled=eq.true&select=id" \
+          curl --fail-with-body --silent --show-error --retry 3 --max-time 30 \
+            "$SUPABASE_URL/rest/v1/job_sources?enabled=eq.true&select=id,company_name" \
             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-            | jq -r '.[].id' > /tmp/source_ids
-          export SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY
-          xargs -P 6 -I '{}' bash -c '\
-            curl --fail-with-body --retry 2 --max-time 120 \
-              -X POST "$SUPABASE_URL/functions/v1/crawl-jobs" \
-              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-              -H "Content-Type: application/json" \
-              --data "{\"source_ids\":[\"{}\"],\"limit_per_source\":500,\"close_missing\":true}"\
-          ' < /tmp/source_ids
+            | jq -r '.[] | [.id, .company_name] | @tsv' > /tmp/sources.tsv
+          mkdir -p /tmp/crawl-results
+          while IFS=$'\t' read -r source_id company_name; do
+            while [ "$(jobs -rp | wc -l)" -ge 4 ]; do wait -n || true; done
+            (
+              set +e
+              response=$(curl --silent --show-error --max-time 120 \
+                -X POST "$SUPABASE_URL/functions/v1/crawl-jobs" \
+                -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Content-Type: application/json" \
+                --data "{\"source_ids\":[\"$source_id\"],\"limit_per_source\":300,\"close_missing\":true}")
+              rc=$?
+              if [ "$rc" -eq 0 ] && printf '%s' "$response" | jq -e '.data and (.data.failed == 0)' >/dev/null 2>&1; then
+                printf '%s' "$response" | jq --arg id "$source_id" --arg company "$company_name" \
+                  '{source_id:$id,company:$company,success:true,fetched:.data.fetched,new:.data.new,changed:.data.changed,closed:.data.closed,unchanged:.data.unchanged}' \
+                  > "/tmp/crawl-results/$source_id.json"
+              else
+                message=$(printf '%s' "$response" | jq -r '.error.message // .message // "request_failed"' 2>/dev/null)
+                jq -n --arg id "$source_id" --arg company "$company_name" --arg message "$message" --argjson rc "$rc" \
+                  '{source_id:$id,company:$company,success:false,exit_code:$rc,error:$message}' \
+                  > "/tmp/crawl-results/$source_id.json"
+              fi
+            ) &
+          done < /tmp/sources.tsv
+          wait || true
+
+          jq -s '.' /tmp/crawl-results/*.json > /tmp/crawl-summary.json
+          success=$(jq '[.[] | select(.success)] | length' /tmp/crawl-summary.json)
+          failed=$(jq '[.[] | select(.success|not)] | length' /tmp/crawl-summary.json)
+          fetched=$(jq '[.[] | select(.success) | .fetched] | add // 0' /tmp/crawl-summary.json)
+          {
+            echo '## Daily ATS crawl summary'
+            echo
+            echo "- Successful sources: **$success**"
+            echo "- Failed sources: **$failed**"
+            echo "- Jobs fetched: **$fetched**"
+            echo
+            echo '### Failed source list'
+            if [ "$failed" -eq 0 ]; then echo '- None'; else jq -r '.[] | select(.success|not) | "- \(.company): \(.error) (curl \(.exit_code))"' /tmp/crawl-summary.json; fi
+            echo
+            echo '<details><summary>Per-source results</summary>'
+            echo
+            jq -r '.[] | if .success then "- ✅ \(.company): fetched=\(.fetched), new=\(.new), changed=\(.changed), closed=\(.closed), unchanged=\(.unchanged)" else "- ❌ \(.company): \(.error)" end' /tmp/crawl-summary.json
+            echo '</details>'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$success" -gt 0
