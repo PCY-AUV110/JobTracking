@@ -1,6 +1,6 @@
 # Codex backend development state
 
-Updated: 2026-09-03
+Updated: 2026-09-04
 
 ## Done
 
@@ -19,18 +19,21 @@ Updated: 2026-09-03
 - Day 4 production crawl run `33766630211` completed successfully: 32/43 sources succeeded, 11 resource-limited sources were isolated, 3,690 postings were fetched, and the production catalog reached 6,393 jobs.
 - JWT-protected `job-feed` and `job-history` functions deployed; first feed load scores the caller's latest parsed resume on demand.
 - Day 4 production smoke passed with an ephemeral Auth user: `parse-resume` persisted one parsed resume, `score-jobs` created one passing match with one LLM call, and both feed/history returned it; the test user was deleted afterward.
+- Day 5 migration `20260904033427_day5_work_mode_country.sql` is applied: jobs now carry normalized `work_mode`/`country_code`, and preferences carry `work_modes[]`/`countries[]`.
+- Day 5 crawl normalization and soft score bonuses are deployed (`work_mode` +8, country +10; mismatches never hard-filter).
+- Day 5 authenticated feed smoke passed with `work_mode=hybrid&country=CA`; the response returned one matching row with both normalized fields, then the ephemeral user was deleted.
 - Six-table migration validated against the linked Supabase project prerequisites (`update_profiles_updated_at` and `is_super_admin`) and prepared for deployment.
 - Confirmed backend ownership boundaries: `supabase/`, `.github/workflows/`, backend client wrapper, and backend docs.
 
 ## In progress
 
-- Day 4 is deployed; handoff is waiting for Steven's authenticated browser acceptance test with his own resume.
+- Review and merge Claude's `feature/day5-frontend`, then verify GitHub Pages.
 
 ## Next
 
-1. Wire the frontend's feed/history client from mock mode to the deployed `job-feed` and `job-history` functions.
-2. Have Steven upload a real resume and verify parsed content, generated matches, and card rendering in his authenticated session.
-3. Reduce resource pressure for the 11 oversized ATS boards through pagination/chunking without weakening partial-success semantics.
+1. Merge and deploy the Day 5 frontend work-mode/country controls and job-detail contrast fix.
+2. Have Steven verify preference persistence and filtered real-feed results in an authenticated browser session.
+3. In the next phase, reduce resource pressure for the 11 oversized ATS boards and plan the separate 200-company browser-discovery pipeline.
 
 ## Blockers / decisions
 
