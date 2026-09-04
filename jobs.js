@@ -19,11 +19,8 @@ const JOB_PREF_STORAGE_KEY = "offerflow_mock_job_preferences_v3";
 const JOBS_BACKEND_READY = true;
 const JOBS_FEED_BACKEND_READY = true; // Day4 收口：Codex 确认 job-feed/job-history 已部署 ACTIVE v1，JWT 开启
 
-// Day5：job_preferences 表要加 work_modes text[]/countries text[] 两列（Codex 同步中），
-// 迁移还没确认部署，先关着——upsert 时如果服务端没有这两列会整条 upsert 失败，不能提前打开，
-// 不然会连累 keywords/job_types 等已经能存的字段一起存不进去。真实读写函数已写好，
-// Codex 确认 migration 上线后把这个改 true 即可。
-const JOB_PREFS_BACKEND_READY = false;
+// Day5 migration 0004 已在生产库上线，岗位偏好由 Supabase 持久化并跨设备同步。
+const JOB_PREFS_BACKEND_READY = true;
 
 // 契约里 llm_grade 是 A|B|C|D|E|F 六档
 const MATCH_GRADE_STYLE = {
@@ -99,8 +96,7 @@ function loadJobPreferencesLocal() {
   return jobPreferences;
 }
 
-// 契约里 job_preferences 的行结构；work_modes/countries 只有 JOB_PREFS_BACKEND_READY=true
-// 时才会真的读写到这两列（见文件头开关说明）
+// 契约里 job_preferences 的行结构。
 async function getJobPreferencesBackend() {
   const { data, error } = await supabase.from("job_preferences").select("*").eq("user_id", currentUser.id).maybeSingle();
   if (error) throw error;
@@ -133,8 +129,7 @@ function persistJobPreferences() {
   localStorage.setItem(JOB_PREF_STORAGE_KEY, JSON.stringify(jobPreferences));
 }
 
-// 进入视图时调用：读一次后渲染。work_modes/countries 目前无论开关是否打开都会
-// 从 localStorage 补齐（因为服务端还没有这两列），跨设备同步要等 JOB_PREFS_BACKEND_READY
+// 进入视图时调用：登录用户优先读取云端，localStorage 作为离线兜底。
 async function renderJobPreferencesForm() {
   if (JOB_PREFS_BACKEND_READY && currentUser) {
     try {
@@ -234,10 +229,8 @@ async function handlePrefSaveClick() {
 // ============================================================
 // 智能岗位卡片流：本地存储读写（字段名对齐 job_matches 表 + jobs/vetting_reviews 联查）
 // ============================================================
-// Day5：work_mode/country 查询参数，值来自岗位偏好页保存的 work_modes/countries
-// （逗号分隔多值，如 work_mode=remote,hybrid）。job-feed/job-history 这两个查询
-// 参数是否已经支持还没确认，但契约"未知参数忽略"，传了不会出错，Codex 那边接上
-// 后不用改前端。
+// Day5：work_mode/country 查询参数，值来自岗位偏好页保存的 work_modes/countries，
+// 逗号分隔多值（如 work_mode=remote,hybrid）。
 function buildPreferenceQueryParams() {
   if (!jobPreferences) loadJobPreferencesLocal();
   return {
@@ -337,10 +330,8 @@ function mapFeedRow(row) {
     applied_at: row.applied_at,
     ats_type: row.ats_type || null,
     created_at: row.created_at || null,
-    // Day5：work_mode/country_code 是否已经出现在真实返回行里还没确认，
-    // 用 || null 兜底，字段没到位时界面上直接不显示这个标签，不会报错
-    work_mode: row.work_mode || null,
-    country_code: row.country_code || null
+    work_mode: row.work_mode && row.work_mode !== "unknown" ? row.work_mode : null,
+    country_code: row.country_code && row.country_code !== "unknown" ? row.country_code : null
   };
 }
 
