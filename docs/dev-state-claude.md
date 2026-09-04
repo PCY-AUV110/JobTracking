@@ -1,7 +1,19 @@
 # 前端开发状态（Claude Code 维护）
 
-分支：`feature/day4-frontend`（已 push，从最新 main 切出）
+分支：`feature/day5-frontend`（已 push，从最新 main 切出）
 工区：`/Users/p.cy/Desktop/杂货铺/jobtrack-release`（独立 worktree，与主工区 `jobtrack_github_demo`、Codex 的 `jobtrack-backend` 平级），本地预览用 `python3 -m http.server 8000`
+
+## Day5（2026-09-02 深夜，已 push，commit `8ddbece`）
+
+**Phase 1（`f0a79f6`，单独先 push 过一次给 Codex 优先 review）**：`.modal` 背景用了全仓未定义的 `--claude-paper`/`--claude-line`，导致所有弹窗背景透明、黑字看不清——这是我之前排查过的同一类 `--claude-*` dead variable 问题的第 3 次现身。改成 `rgba(255,255,255,.96)` 近不透明白底 + `--glass-blur` 轻微模糊 + 显式 `color: var(--ink)`，backdrop 遮罩加深到 `rgba(20,25,35,.58)`。影响所有弹窗（申请/面试/改密码/岗位详情），桌面+移动端截图确认过。
+
+**Phase 2**：岗位偏好加"工作模式"(`work_modes`: in_person/remote/hybrid)和"国家"(`countries`: US/CA，UI 显示 America/Canada)两组 checkbox-pill。`job-feed`/`job-history` 请求带上 `work_mode`/`country` 查询参数（从保存的偏好取值，逗号分隔多选）。
+
+**一个重要的风险判断，没有照单全收 Steven 的字面指令**：Steven 要求"接通 job_preferences 真实读写"，但我先查了 `supabase/migrations/` 确认 `work_modes`/`countries` 这两列**还没有任何迁移文件**（只有 Day3 的 `internship_duration`/`start_season` 已经上线）。如果直接把这两个新字段塞进 `upsert`，字段不存在会导致**整条 upsert 失败**——不止新字段存不进去，连 keywords/job_types 这些已经能存的老字段也会一起存失败。所以真实读写函数写好了，但用新开关 `JOB_PREFS_BACKEND_READY`（当前 false）挡住，偏好目前还是主要存 localStorage，等 Codex 确认 migration 上线后开关一开就通。
+
+**顺手做的卡片展示**：如果 `job-feed` 返回行里有 `work_mode`/`country_code`，卡片和详情弹窗会显示图标+文字标签；没有这两个字段时不显示任何东西（不会出现"undefined"）——这两个字段目前是否已经在真实返回行里也没confirm，先做好兜底。
+
+**验证**：本地跑了一轮——弹窗背景修复截图确认（桌面+移动端），新偏好字段保存后刷新页面仍在，智能岗位视图无回归、console 无报错。
 
 ## Day4 收口（2026-09-02 深夜，已 push，commit `3f5ab50`）
 

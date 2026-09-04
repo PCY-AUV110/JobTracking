@@ -19,6 +19,12 @@ const JOB_PREF_STORAGE_KEY = "offerflow_mock_job_preferences_v3";
 const JOBS_BACKEND_READY = true;
 const JOBS_FEED_BACKEND_READY = true; // Day4 收口：Codex 确认 job-feed/job-history 已部署 ACTIVE v1，JWT 开启
 
+// Day5：job_preferences 表要加 work_modes text[]/countries text[] 两列（Codex 同步中），
+// 迁移还没确认部署，先关着——upsert 时如果服务端没有这两列会整条 upsert 失败，不能提前打开，
+// 不然会连累 keywords/job_types 等已经能存的字段一起存不进去。真实读写函数已写好，
+// Codex 确认 migration 上线后把这个改 true 即可。
+const JOB_PREFS_BACKEND_READY = false;
+
 // 契约里 llm_grade 是 A|B|C|D|E|F 六档
 const MATCH_GRADE_STYLE = {
   A: { bg: "rgba(48, 176, 112, 0.14)", color: "#1f7a4d" },
@@ -73,36 +79,78 @@ let currentJobTab = "feed"; // "feed" | "history"
 // ============================================================
 // 岗位偏好：本地存储读写（字段名对齐 job_preferences 表）
 // ============================================================
-function loadJobPreferences() {
+function defaultJobPreferences() {
+  return {
+    keywords: [], locations: [], job_types: [], min_salary: null, excluded_keywords: [], filter_pr_citizen: true,
+    internship_duration: [], start_season: [],
+    // Day5：字段名按 Steven/Codex 定的写，job_preferences 表加 work_modes/countries 两列
+    work_modes: [], countries: []
+  };
+}
+
+function loadJobPreferencesLocal() {
   try {
     const raw = localStorage.getItem(JOB_PREF_STORAGE_KEY);
-    jobPreferences = raw ? JSON.parse(raw) : null;
+    jobPreferences = raw ? { ...defaultJobPreferences(), ...JSON.parse(raw) } : null;
   } catch {
     jobPreferences = null;
   }
-  if (!jobPreferences) {
-    jobPreferences = {
-      keywords: [], locations: [], job_types: [], min_salary: null, excluded_keywords: [], filter_pr_citizen: true,
-      // 字段名先按 Steven 给的写，Codex v1.2 契约确认后如有出入再改
-      internship_duration: [], start_season: []
-    };
-  }
+  if (!jobPreferences) jobPreferences = defaultJobPreferences();
   return jobPreferences;
 }
 
+// 契约里 job_preferences 的行结构；work_modes/countries 只有 JOB_PREFS_BACKEND_READY=true
+// 时才会真的读写到这两列（见文件头开关说明）
+async function getJobPreferencesBackend() {
+  const { data, error } = await supabase.from("job_preferences").select("*").eq("user_id", currentUser.id).maybeSingle();
+  if (error) throw error;
+  return data ? { ...defaultJobPreferences(), ...data } : defaultJobPreferences();
+}
+
+async function saveJobPreferencesBackend(prefs) {
+  const row = {
+    user_id: currentUser.id,
+    keywords: prefs.keywords,
+    locations: prefs.locations,
+    job_types: prefs.job_types,
+    min_salary: prefs.min_salary,
+    filter_pr_citizen: prefs.filter_pr_citizen,
+    excluded_keywords: prefs.excluded_keywords,
+    internship_duration: prefs.internship_duration,
+    start_season: prefs.start_season
+  };
+  if (JOB_PREFS_BACKEND_READY) {
+    row.work_modes = prefs.work_modes;
+    row.countries = prefs.countries;
+  }
+  const { error } = await supabase.from("job_preferences").upsert(row);
+  if (error) throw error;
+}
+
 function persistJobPreferences() {
-  // TODO(后端就绪): 换成 await upsertJobPreferences(jobPreferences)
+  // work_modes/countries 在后端就绪前只落 localStorage，避免刷新丢失；就绪后
+  // saveJobPreferencesBackend() 会把它们一起写进去
   localStorage.setItem(JOB_PREF_STORAGE_KEY, JSON.stringify(jobPreferences));
 }
 
-// 进入视图时调用：从 localStorage 读一次后渲染
-function renderJobPreferencesForm() {
-  loadJobPreferences();
+// 进入视图时调用：读一次后渲染。work_modes/countries 目前无论开关是否打开都会
+// 从 localStorage 补齐（因为服务端还没有这两列），跨设备同步要等 JOB_PREFS_BACKEND_READY
+async function renderJobPreferencesForm() {
+  if (JOB_PREFS_BACKEND_READY && currentUser) {
+    try {
+      jobPreferences = await getJobPreferencesBackend();
+    } catch (err) {
+      showToast("岗位偏好加载失败：" + (err?.message || "未知错误"));
+      loadJobPreferencesLocal();
+    }
+  } else {
+    loadJobPreferencesLocal();
+  }
   renderJobPreferencesFormUI();
 }
 
-// chip 增删等本地状态变更后调用：只重渲染当前内存状态，不重新读取 localStorage
-// （避免把尚未保存的修改被 loadJobPreferences() 覆盖掉）
+// chip 增删等本地状态变更后调用：只重渲染当前内存状态，不重新读取存储
+// （避免把尚未保存的修改被覆盖掉）
 function renderJobPreferencesFormUI() {
   renderChipList("prefKeywordsChips", jobPreferences.keywords, removePrefKeyword);
   renderChipList("prefLocationsChips", jobPreferences.locations, removePrefLocation);
@@ -115,6 +163,12 @@ function renderJobPreferencesFormUI() {
   });
   document.querySelectorAll("#prefStartSeasonGroup input[type=checkbox]").forEach(box => {
     box.checked = jobPreferences.start_season.includes(box.value);
+  });
+  document.querySelectorAll("#prefWorkModeGroup input[type=checkbox]").forEach(box => {
+    box.checked = jobPreferences.work_modes.includes(box.value);
+  });
+  document.querySelectorAll("#prefCountryGroup input[type=checkbox]").forEach(box => {
+    box.checked = jobPreferences.countries.includes(box.value);
   });
   document.getElementById("prefMinSalary").value = jobPreferences.min_salary ?? "";
   document.getElementById("prefFilterIdentityToggle").checked = jobPreferences.filter_pr_citizen !== false;
@@ -153,20 +207,45 @@ function removePrefKeyword(idx) { jobPreferences.keywords.splice(idx, 1); render
 function removePrefLocation(idx) { jobPreferences.locations.splice(idx, 1); renderJobPreferencesFormUI(); }
 function removePrefExclude(idx) { jobPreferences.excluded_keywords.splice(idx, 1); renderJobPreferencesFormUI(); }
 
-function handlePrefSaveClick() {
+async function handlePrefSaveClick() {
   jobPreferences.job_types = Array.from(document.querySelectorAll("#prefJobTypesGroup input:checked")).map(b => b.value);
   jobPreferences.internship_duration = Array.from(document.querySelectorAll("#prefInternshipDurationGroup input:checked")).map(b => b.value);
   jobPreferences.start_season = Array.from(document.querySelectorAll("#prefStartSeasonGroup input:checked")).map(b => b.value);
+  jobPreferences.work_modes = Array.from(document.querySelectorAll("#prefWorkModeGroup input:checked")).map(b => b.value);
+  jobPreferences.countries = Array.from(document.querySelectorAll("#prefCountryGroup input:checked")).map(b => b.value);
   const minSalaryVal = document.getElementById("prefMinSalary").value;
   jobPreferences.min_salary = minSalaryVal ? Number(minSalaryVal) : null;
   jobPreferences.filter_pr_citizen = document.getElementById("prefFilterIdentityToggle").checked;
-  persistJobPreferences();
-  showToast("岗位偏好已保存");
+
+  persistJobPreferences(); // 本地始终先存一份，跨设备同步之外的兜底
+
+  if (JOB_PREFS_BACKEND_READY && currentUser) {
+    try {
+      await saveJobPreferencesBackend(jobPreferences);
+      showToast("岗位偏好已保存（已同步到你的账户）");
+    } catch (err) {
+      showToast("已存在本机，同步到账户失败：" + (err?.message || "未知错误"));
+    }
+    return;
+  }
+  showToast(currentUser ? "岗位偏好已保存到本机（跨设备同步等后端字段就绪）" : "岗位偏好已保存到本机");
 }
 
 // ============================================================
 // 智能岗位卡片流：本地存储读写（字段名对齐 job_matches 表 + jobs/vetting_reviews 联查）
 // ============================================================
+// Day5：work_mode/country 查询参数，值来自岗位偏好页保存的 work_modes/countries
+// （逗号分隔多值，如 work_mode=remote,hybrid）。job-feed/job-history 这两个查询
+// 参数是否已经支持还没确认，但契约"未知参数忽略"，传了不会出错，Codex 那边接上
+// 后不用改前端。
+function buildPreferenceQueryParams() {
+  if (!jobPreferences) loadJobPreferencesLocal();
+  return {
+    work_mode: jobPreferences.work_modes?.length ? jobPreferences.work_modes.join(",") : undefined,
+    country: jobPreferences.countries?.length ? jobPreferences.countries.join(",") : undefined
+  };
+}
+
 async function loadJobMatches() {
   if (JOBS_FEED_BACKEND_READY) {
     if (!currentUser) { jobMatches = []; return jobMatches; }
@@ -174,7 +253,8 @@ async function loadJobMatches() {
     const statusFilter = document.getElementById("jobStatusFilter").value;
     const params = {
       risk_rating: riskFilter === "all" ? undefined : riskFilter,
-      status: statusFilter === "all" ? undefined : statusFilter
+      status: statusFilter === "all" ? undefined : statusFilter,
+      ...buildPreferenceQueryParams()
     };
     const result = currentJobTab === "history" ? await getJobHistory(params) : await getJobFeed(params);
     jobMatches = (result.jobs || []).map(mapFeedRow);
@@ -256,12 +336,27 @@ function mapFeedRow(row) {
     viewed_at: row.viewed_at,
     applied_at: row.applied_at,
     ats_type: row.ats_type || null,
-    created_at: row.created_at || null
+    created_at: row.created_at || null,
+    // Day5：work_mode/country_code 是否已经出现在真实返回行里还没确认，
+    // 用 || null 兜底，字段没到位时界面上直接不显示这个标签，不会报错
+    work_mode: row.work_mode || null,
+    country_code: row.country_code || null
   };
 }
 
+const WORK_MODE_LABELS = { in_person: "In Person", remote: "Remote", hybrid: "Hybrid" };
+const WORK_MODE_ICONS = { in_person: "🏢", remote: "🏠", hybrid: "🔀" };
+const COUNTRY_LABELS = { US: "America", CA: "Canada" };
+const COUNTRY_ICONS = { US: "🇺🇸", CA: "🇨🇦" };
+
+function workModeCountryTag(job) {
+  const parts = [];
+  if (job.work_mode) parts.push(`${WORK_MODE_ICONS[job.work_mode] || ""} ${WORK_MODE_LABELS[job.work_mode] || job.work_mode}`);
+  if (job.country_code) parts.push(`${COUNTRY_ICONS[job.country_code] || ""} ${COUNTRY_LABELS[job.country_code] || job.country_code}`);
+  return parts.length ? `<span class="small-muted">${escapeHtml(parts.join(" · "))}</span>` : "";
+}
+
 function getFilteredSortedJobs() {
-  loadJobPreferences();
   const riskFilter = document.getElementById("jobRiskFilter").value;
   const statusFilter = document.getElementById("jobStatusFilter").value;
   const sortBy = document.getElementById("jobSortSelect").value;
@@ -304,6 +399,7 @@ function jobCardHtml(job) {
         <span>${escapeHtml(job.salary_raw)}</span>
         <span class="risk-badge" style="background:${risk.bg};color:${risk.color}">${risk.label}</span>
         <span class="status-badge" style="background:${statusStyle.bg};color:${statusStyle.color}">${statusStyle.label}</span>
+        ${workModeCountryTag(job)}
         ${job.ats_type ? `<span class="small-muted">来源 ${escapeHtml(ATS_LABELS[job.ats_type] || job.ats_type)}</span>` : ""}
       </div>
       <p class="job-card-requirements">${escapeHtml(job.jd_summary)}</p>
@@ -410,7 +506,7 @@ async function refreshJobFeed() {
   try {
     if (JOBS_FEED_BACKEND_READY) {
       if (!currentUser) { showToast("请先登录后再刷新岗位推荐"); return; }
-      const result = await getJobFeed({ refresh: true });
+      const result = await getJobFeed({ refresh: true, ...buildPreferenceQueryParams() });
       jobMatches = (result.jobs || []).map(mapFeedRow);
       renderJobCardGrid();
       showToast(result.refreshed ? "已刷新岗位推荐" : "岗位库已是最新");
@@ -456,6 +552,8 @@ function openJobDetail(jobId) {
     <p><strong>地点：</strong>${escapeHtml(job.location_city)}</p>
     <p><strong>薪资：</strong>${escapeHtml(job.salary_raw)}</p>
     <p><strong>雇佣类型：</strong>${escapeHtml(job.employment_type)}</p>
+    ${job.work_mode ? `<p><strong>工作模式：</strong>${escapeHtml(`${WORK_MODE_ICONS[job.work_mode] || ""} ${WORK_MODE_LABELS[job.work_mode] || job.work_mode}`)}</p>` : ""}
+    ${job.country_code ? `<p><strong>国家：</strong>${escapeHtml(`${COUNTRY_ICONS[job.country_code] || ""} ${COUNTRY_LABELS[job.country_code] || job.country_code}`)}</p>` : ""}
     ${job.ats_type ? `<p><strong>来源：</strong>${escapeHtml(ATS_LABELS[job.ats_type] || job.ats_type)}</p>` : ""}
     <p><strong>核心要求：</strong>${escapeHtml(job.jd_summary)}</p>
     <p class="small-muted" style="margin-top:14px">JD 原文（jd_raw）与匹配差距分析（job_matches.gaps）等真实 score-jobs 数据接入后展示，目前为本地演示数据占位。</p>
