@@ -22,18 +22,19 @@ Updated: 2026-09-04
 - Day 5 migration `20260904033427_day5_work_mode_country.sql` is applied: jobs now carry normalized `work_mode`/`country_code`, and preferences carry `work_modes[]`/`countries[]`.
 - Day 5 crawl normalization and soft score bonuses are deployed (`work_mode` +8, country +10; mismatches never hard-filter).
 - Day 5 authenticated feed smoke passed with `work_mode=hybrid&country=CA`; the response returned one matching row with both normalized fields, then the ephemeral user was deleted.
+- Priority-employer Phase A drafted behind a review gate: migration 0005, a 50-company US/CA seed (30 CA, 20 US), and the isolated Playwright/Actions design. Nothing has been applied or scheduled pending Steven's approval.
 - Six-table migration validated against the linked Supabase project prerequisites (`update_profiles_updated_at` and `is_super_admin`) and prepared for deployment.
 - Confirmed backend ownership boundaries: `supabase/`, `.github/workflows/`, backend client wrapper, and backend docs.
 
 ## In progress
 
-- Review and merge Claude's `feature/day5-frontend`, then verify GitHub Pages.
+- Await Steven's review of the first 50 priority employers before Phase B implementation or production insertion.
 
 ## Next
 
-1. Merge and deploy the Day 5 frontend work-mode/country controls and job-detail contrast fix.
-2. Have Steven verify preference persistence and filtered real-feed results in an authenticated browser session.
-3. In the next phase, reduce resource pressure for the 11 oversized ATS boards and plan the separate 200-company browser-discovery pipeline.
+1. Incorporate Steven's additions/removals/tier changes to the 50-company review seed.
+2. After approval, apply migration/seed and implement the bounded Playwright discovery workflow.
+3. Promote any verified Greenhouse/Lever/Ashby boards into the existing ATS JSON fast path.
 
 ## Blockers / decisions
 
