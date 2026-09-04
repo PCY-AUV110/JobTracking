@@ -17,6 +17,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+artifacts/
+supabase/.temp/
 
 # 本地环境变量（如有）
 .env

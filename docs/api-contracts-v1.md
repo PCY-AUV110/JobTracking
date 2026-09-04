@@ -1,4 +1,4 @@
-# OfferFlow Backend API Contracts v1.3
+# OfferFlow Backend API Contracts v1.4
 
 Status: **frozen for frontend integration**  
 Date: 2026-09-02  
@@ -476,6 +476,26 @@ These preferences are soft scoring signals: matching work mode adds 8 points and
 matching country adds 10 points. A mismatch is not a hard filter in `score-jobs`.
 Explicit `job-feed` query parameters are presentation filters and therefore do
 apply SQL filtering when supplied.
+
+## Addendum v1.4 (2026-09-05) — priority employers
+
+Status: **frozen for frontend integration**.
+
+`priority_employers` is the service-managed US/Canada employer catalog used by
+the separately scheduled public-browser discovery workflow. Core fields are:
+`id`, `company_name`, `country`, `gta_relevance`, `industry`, `career_url`,
+`ats_type`, `crawl_strategy`, `priority_tier`, `verify_status`,
+`last_success_at`, `last_apply_url`, `notes`, `created_at`, and `updated_at`.
+Authenticated clients may read the catalog; writes require service role.
+
+`jobs` adds `is_priority_employer boolean not null default false`.
+Both `GET /jobs/feed` (`job-feed`) and `GET /jobs/history` (`job-history`) return:
+
+```json
+{ "is_priority_employer": true }
+```
+
+The value is always boolean. Missing/legacy data is serialized as `false`.
 `score-jobs` treats them as soft signals: a matching duration/season adds points;
 a clear conflict subtracts points, but never hard-filters the job.
 
