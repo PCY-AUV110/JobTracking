@@ -1189,7 +1189,7 @@ button { cursor: pointer; }
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(44,41,38,.48);
+  background: rgba(20,25,35,.58);
   backdrop-filter: blur(4px);
 }
 
@@ -1200,8 +1200,14 @@ button { cursor: pointer; }
   max-height: 90vh;
   overflow: auto;
   border-radius: 22px;
-  background: var(--claude-paper);
-  border: 1px solid var(--claude-line);
+  /* 曾经用 var(--claude-paper)/var(--claude-line)，全仓未定义导致背景透明、
+     黑字在弹窗上看不清（详情见 docs/dev-state-claude.md Day5）。改成接近
+     不透明的白底 + 轻微 blur，兼顾可读性与 Liquid Glass 的玻璃质感。 */
+  background: rgba(255, 255, 255, .96);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: 1px solid var(--line);
+  color: var(--ink);
   padding: 24px;
   box-shadow: 0 30px 90px rgba(44,41,38,.28);
 }
