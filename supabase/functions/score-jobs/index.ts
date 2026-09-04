@@ -34,6 +34,22 @@ function timingAdjustment(jd: string, preferences: any) {
   return { points, signals, found_durations: foundDurations, found_seasons: foundSeasons };
 }
 
+function targetingAdjustment(job: any, preferences: any) {
+  const preferredModes: string[] = preferences?.work_modes ?? [];
+  const preferredCountries: string[] = preferences?.countries ?? [];
+  let points = 0;
+  const signals: string[] = [];
+  if (preferredModes.length && job.work_mode !== "unknown" && preferredModes.includes(job.work_mode)) {
+    points += 8;
+    signals.push("work_mode_match");
+  }
+  if (preferredCountries.length && job.country_code !== "unknown" && preferredCountries.includes(job.country_code)) {
+    points += 10;
+    signals.push("country_match");
+  }
+  return { points, signals, work_mode: job.work_mode ?? "unknown", country_code: job.country_code ?? "unknown" };
+}
+
 Deno.serve(async (req: Request) => {
   const rid = requestId();
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -58,25 +74,29 @@ Deno.serve(async (req: Request) => {
       const jobTokens = tokens(`${job.title} ${job.jd_raw}`);
       const overlap = [...jobTokens].filter((x) => resumeTokens.has(x)).length;
       const timing = timingAdjustment(job.jd_raw ?? "", preferences);
+      const targeting = targetingAdjustment(job, preferences);
       const baseRule = 35 + 65 * overlap / Math.max(1, Math.min(jobTokens.size, 30));
-      const ruleScore = Math.max(0, Math.min(100, Math.round(baseRule + timing.points)));
+      const ruleScore = Math.max(0, Math.min(100, Math.round(baseRule + timing.points + targeting.points)));
       if (blocked) {
         hardFiltered++;
-        const { data: match } = await db.from("job_matches").upsert({job_id:job.id,resume_id:resume.id,user_id:u.id,rule_score:0,rule_passed:false,gaps:{hard_filter:["identity_requirement"],timing}},{onConflict:"job_id,resume_id,user_id"}).select("id").single();
+        const { data: match } = await db.from("job_matches").upsert({job_id:job.id,resume_id:resume.id,user_id:u.id,rule_score:0,rule_passed:false,gaps:{hard_filter:["identity_requirement"],timing,targeting}},{onConflict:"job_id,resume_id,user_id"}).select("id").single();
         results.push({job_id:job.id,match_id:match?.id,rule_score:0,rule_passed:false,llm_grade:null,llm_score:null});
         continue;
       }
       passed++;
       let score = ruleScore;
       let grade = score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : score >= 60 ? "D" : score >= 50 ? "E" : "F";
-      let gaps: any = {missing_keywords:[...jobTokens].filter((x)=>!resumeTokens.has(x)).slice(0,15),timing};
+      let gaps: any = {missing_keywords:[...jobTokens].filter((x)=>!resumeTokens.has(x)).slice(0,15),timing,targeting};
       if (OPENAI_API_KEY) {
-        const ai = await fetch("https://api.openai.com/v1/chat/completions", {method:"POST",headers:{authorization:`Bearer ${OPENAI_API_KEY}`,"content-type":"application/json"},body:JSON.stringify({model:"gpt-4o-mini",response_format:{type:"json_object"},temperature:0,max_tokens:350,messages:[{role:"system",content:"Score resume-job fit. Return JSON {score:0-100,grade:A-F,gaps:{missing_skills:[],notes:[]}}. Timing preferences are soft signals only; do not reject on timing."},{role:"user",content:`RESUME\n${resume.raw_text.slice(0,10000)}\nPREFERENCES\n${JSON.stringify({internship_duration:preferences?.internship_duration??[],start_season:preferences?.start_season??[]})}\nJOB\n${job.jd_raw.slice(0,10000)}`}]})});
+        const ai = await fetch("https://api.openai.com/v1/chat/completions", {method:"POST",headers:{authorization:`Bearer ${OPENAI_API_KEY}`,"content-type":"application/json"},body:JSON.stringify({model:"gpt-4o-mini",response_format:{type:"json_object"},temperature:0,max_tokens:350,messages:[{role:"system",content:"Score resume-job fit. Return JSON {score:0-100,grade:A-F,gaps:{missing_skills:[],notes:[]}}. Timing, work-mode, and country preferences are soft signals only; never reject for a mismatch."},{role:"user",content:`RESUME\n${resume.raw_text.slice(0,10000)}\nPREFERENCES\n${JSON.stringify({internship_duration:preferences?.internship_duration??[],start_season:preferences?.start_season??[],work_modes:preferences?.work_modes??[],countries:preferences?.countries??[]})}\nJOB\n${job.jd_raw.slice(0,10000)}`}]})});
         if (ai.ok) {
           const payload = await ai.json(); const value = JSON.parse(payload.choices[0].message.content);
-          score = Math.max(0, Math.min(100, (Number(value.score) || ruleScore) + timing.points));
+          const aiScore = Number(value.score);
+          score = Number.isFinite(aiScore)
+            ? Math.max(0, Math.min(100, aiScore + timing.points + targeting.points))
+            : ruleScore;
           grade = score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : score >= 60 ? "D" : score >= 50 ? "E" : "F";
-          gaps = {...(value.gaps ?? {}),timing}; llmCalls++; totalTokens += payload.usage?.total_tokens ?? 0;
+          gaps = {...(value.gaps ?? {}),timing,targeting}; llmCalls++; totalTokens += payload.usage?.total_tokens ?? 0;
           await db.from("ai_usage_logs").insert({user_id:u.id,function_name:"score-jobs",model:"gpt-4o-mini",prompt_tokens:payload.usage?.prompt_tokens??0,completion_tokens:payload.usage?.completion_tokens??0,total_tokens:payload.usage?.total_tokens??0});
         }
       }
