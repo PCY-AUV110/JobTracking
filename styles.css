@@ -3564,7 +3564,8 @@ body.compact .cards-list { gap: 8px; }
 
 .grade-badge,
 .risk-badge,
-.status-badge {
+.status-badge,
+.priority-badge {
   display: inline-flex;
   align-items: center;
   padding: 3px 10px;

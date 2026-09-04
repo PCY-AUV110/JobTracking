@@ -331,8 +331,19 @@ function mapFeedRow(row) {
     ats_type: row.ats_type || null,
     created_at: row.created_at || null,
     work_mode: row.work_mode && row.work_mode !== "unknown" ? row.work_mode : null,
-    country_code: row.country_code && row.country_code !== "unknown" ? row.country_code : null
+    country_code: row.country_code && row.country_code !== "unknown" ? row.country_code : null,
+    // Day6：job-feed v1.4 独立部署中，字段可能还不存在，一律用 === true 严格判断，
+    // 缺失/false/undefined 都归为「不是重点大厂」，不显示徽章，不报错
+    is_priority_employer: row.is_priority_employer === true
   };
+}
+
+// Day6：重点大厂徽章，配色用 --accent:#1E5FB8（跟其他徽章一样走 inline rgba，不依赖 CSS 变量）
+const PRIORITY_BADGE_STYLE = { bg: "rgba(30, 95, 184, 0.14)", color: "#164A8F" };
+
+function priorityBadgeHtml(job) {
+  if (job.is_priority_employer !== true) return "";
+  return `<span class="priority-badge" style="background:${PRIORITY_BADGE_STYLE.bg};color:${PRIORITY_BADGE_STYLE.color}">⭐ 重点大厂</span>`;
 }
 
 const WORK_MODE_LABELS = { in_person: "In Person", remote: "Remote", hybrid: "Hybrid" };
@@ -387,6 +398,7 @@ function jobCardHtml(job) {
         <span class="grade-badge" style="background:${grade.bg};color:${grade.color}">${job.llm_grade}</span>
       </div>
       <div class="job-card-meta">
+        ${priorityBadgeHtml(job)}
         <span>${escapeHtml(job.salary_raw)}</span>
         <span class="risk-badge" style="background:${risk.bg};color:${risk.color}">${risk.label}</span>
         <span class="status-badge" style="background:${statusStyle.bg};color:${statusStyle.color}">${statusStyle.label}</span>
@@ -536,6 +548,7 @@ function openJobDetail(jobId) {
   document.getElementById("jobDetailTitle").textContent = `${job.title} · ${job.company_legal_name}`;
   document.getElementById("jobDetailBody").innerHTML = `
     <div class="chip-input" style="margin-bottom:14px">
+      ${priorityBadgeHtml(job)}
       <span class="grade-badge" style="background:${grade.bg};color:${grade.color}">匹配等级 ${job.llm_grade}（${job.llm_score} 分）</span>
       <span class="risk-badge" style="background:${risk.bg};color:${risk.color}">背调 ${risk.label}</span>
       <span class="status-badge" style="background:${statusStyle.bg};color:${statusStyle.color}">${statusStyle.label}</span>
