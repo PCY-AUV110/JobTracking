@@ -1,7 +1,15 @@
 # 前端开发状态（Claude Code 维护）
 
-分支：`feature/day6-priority-badge`（已 push，从最新 main 切出）
+分支：`fix/mobile-panel-layout`（已 push，从最新 main 切出）
 工区：`/Users/p.cy/Desktop/杂货铺/jobtrack-release`（独立 worktree，与主工区 `jobtrack_github_demo`、Codex 的 `jobtrack-backend` 平级），本地预览用 `python3 -m http.server 8000`
+
+## 移动端适配修复（已 push，commit `1b3f20b`）
+
+Steven 真机反馈竖屏下组件缺失/要切横屏才能看到。在 390×844 实测了每个 `.modal`/岗位偏好/简历中心面板的真实渲染尺寸（不是靠肉眼猜），发现两个具体问题：
+1. 触控目标不够 44px：`.btn` 42px、`.icon-btn` 38px、`.close-btn` ~28×34、`.checkbox-pill` 35px。全部在 `@media (max-width:480px)` 里补到 ≥44px，桌面端量过 `.btn` 还是精确的 42px，零回归。
+2. `#jobDetailModal` 三个按钮在 390px 宽度挤成一行，文字被断字换行（"关\n闭"）。移动端改成竖排整行按钮，并且用 `position:sticky` 贴在 `.modal` 滚动容器底部（含 `env(safe-area-inset-bottom)` 适配刘海屏），效果是不管内容多长，操作按钮始终在视口内可见可点，不用滚到底——用 `boundingBox()` 实测过岗位详情弹窗和更长的申请表单弹窗，两个的提交按钮都不用滚动就在 844px 视口内。
+
+全部改动只在 `styles.css`，没碰 HTML/JS，符合"未知字段优雅隐藏"的既有行为完全没动。桌面端 1440×900 截图（岗位详情弹窗/申请弹窗/偏好页）跟改之前像素级一致。
 
 ## Day6（已 push，commit `fc5c5bd`）
 
