@@ -1,6 +1,6 @@
 # Codex backend development state
 
-Updated: 2026-09-04
+Updated: 2026-09-05
 
 ## Done
 
@@ -22,19 +22,24 @@ Updated: 2026-09-04
 - Day 5 migration `20260904033427_day5_work_mode_country.sql` is applied: jobs now carry normalized `work_mode`/`country_code`, and preferences carry `work_modes[]`/`countries[]`.
 - Day 5 crawl normalization and soft score bonuses are deployed (`work_mode` +8, country +10; mismatches never hard-filter).
 - Day 5 authenticated feed smoke passed with `work_mode=hybrid&country=CA`; the response returned one matching row with both normalized fields, then the ephemeral user was deleted.
-- Priority-employer Phase A drafted behind a review gate: migration 0005, a 50-company US/CA seed (30 CA, 20 US), and the isolated Playwright/Actions design. Nothing has been applied or scheduled pending Steven's approval.
+- Priority-employer Phase B is live: migration 0005 and a balanced 95-company seed (45 CA, 50 US) are applied in production; every employer remains on the neutral default `priority_tier=2`.
+- The independent Playwright discovery pipeline is merged at `20373fc`. It runs daily in batches of 15 (manual batch defaults to 3), uses one isolated browser context per employer, obeys robots/access controls, stops at the public application destination, and uploads screenshots/redirect evidence for 14 days.
+- Production workflow run `33913648483` succeeded for Gartner, TELUS, and Canadian Tire: Gartner's public Workday apply destination was confirmed; TELUS was stopped by robots policy; Canadian Tire exposed no public apply link. Failures were isolated.
+- The five requested pending employers were checked with real Chromium: Gartner verified; Manulife and McKinsey stopped by robots policy; TELUS stopped by robots policy in Actions; Canadian Tire remains pending because no public apply link was exposed. No bypass was attempted.
+- `job-feed` and `job-history` are deployed with API v1.4 `is_priority_employer`; an authenticated ephemeral-user smoke test confirmed both endpoints return the boolean field. The user and cascade-owned smoke data were deleted afterward.
+- Claude's priority-employer badge was reviewed and merged at `37ec1bd`; absent/false fields hide cleanly.
 - Six-table migration validated against the linked Supabase project prerequisites (`update_profiles_updated_at` and `is_super_admin`) and prepared for deployment.
 - Confirmed backend ownership boundaries: `supabase/`, `.github/workflows/`, backend client wrapper, and backend docs.
 
 ## In progress
 
-- Await Steven's review of the first 50 priority employers before Phase B implementation or production insertion.
+- Phase B is complete; monitoring daily browser discovery and waiting for Phase C approval before expanding from 95 to 200 employers.
 
 ## Next
 
-1. Incorporate Steven's additions/removals/tier changes to the 50-company review seed.
-2. After approval, apply migration/seed and implement the bounded Playwright discovery workflow.
-3. Promote any verified Greenhouse/Lever/Ashby boards into the existing ATS JSON fast path.
+1. Phase C: expand the reviewed directory from 95 to 200 employers with the same industry-balance and URL-verification gate.
+2. Promote newly verified Greenhouse/Lever/Ashby boards into the existing ATS JSON fast path.
+3. Add dedicated normalized browser-job ingestion only if Phase C requires jobs not exposed by a supported public ATS API.
 
 ## Blockers / decisions
 
