@@ -1,4 +1,4 @@
-# OfferFlow Backend API Contracts v1.2
+# OfferFlow Backend API Contracts v1.3
 
 Status: **frozen for frontend integration**  
 Date: 2026-09-02  
@@ -428,6 +428,54 @@ set `new` or `expired`; `expired` remains system-derived.
 ```
 
 Both arrays are optional in requests and default to `[]` (no preference).
+
+## Addendum v1.3 (2026-09-04) — work mode and country
+
+Status: **frozen for frontend integration**.
+
+Canonical enums:
+
+```ts
+type WorkMode = "in_person" | "remote" | "hybrid" | "unknown";
+type CountryCode = "US" | "CA" | "unknown";
+```
+
+`job_preferences` adds `work_modes: ("in_person"|"remote"|"hybrid")[]` and
+`countries: ("US"|"CA")[]`. Both are optional and default to `[]`, meaning no
+preference. The frontend label "America" MUST be serialized as `US`.
+
+`GET /jobs/feed` adds optional comma-separated multi-select query parameters:
+
+- `work_mode=in_person,remote,hybrid`
+- `country=US,CA`
+
+Absent/empty parameters do not filter, preserving backwards compatibility.
+Each feed/history row additionally returns:
+
+```json
+{ "work_mode": "hybrid", "country_code": "CA" }
+```
+
+Updated client signature:
+
+```ts
+getJobFeed(input?: {
+  resume_id?: string;
+  grade?: "A"|"B"|"C"|"D"|"E"|"F";
+  risk_rating?: "low"|"medium"|"high";
+  status?: "new"|"viewed"|"applied"|"expired";
+  work_mode?: "in_person"|"remote"|"hybrid" | Array<"in_person"|"remote"|"hybrid">;
+  country?: "US"|"CA" | Array<"US"|"CA">;
+  refresh?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<ApiResult<{ jobs: JobCard[]; total: number; refreshed: boolean }>>;
+```
+
+These preferences are soft scoring signals: matching work mode adds 8 points and
+matching country adds 10 points. A mismatch is not a hard filter in `score-jobs`.
+Explicit `job-feed` query parameters are presentation filters and therefore do
+apply SQL filtering when supplied.
 `score-jobs` treats them as soft signals: a matching duration/season adds points;
 a clear conflict subtracts points, but never hard-filters the job.
 
