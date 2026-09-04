@@ -1,7 +1,11 @@
 # 前端开发状态（Claude Code 维护）
 
-分支：`feature/day5-frontend`（已 push，从最新 main 切出）
+分支：`feature/day6-priority-badge`（已 push，从最新 main 切出）
 工区：`/Users/p.cy/Desktop/杂货铺/jobtrack-release`（独立 worktree，与主工区 `jobtrack_github_demo`、Codex 的 `jobtrack-backend` 平级），本地预览用 `python3 -m http.server 8000`
+
+## Day6（已 push，commit `fc5c5bd`）
+
+「重点大厂」徽章：`job-feed` 行 `is_priority_employer === true` 时在卡片和详情弹窗显示 ⭐ 重点大厂（`--accent` 配色，跟 grade/risk/status 同一套视觉体系）。`mapFeedRow` 严格用 `=== true` 判断，字段缺失/false 都归为不显示，不报错——这个字段（job-feed v1.4）目前还没部署，验证时是手动注入了带/不带这个字段的 mock 行测的，不是真实数据。只改了这一处，没碰其他逻辑。桌面+390×844 移动端截图确认过。
 
 ## Day5（2026-09-02 深夜，已 push，commit `8ddbece`）
 
