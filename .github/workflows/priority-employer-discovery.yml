@@ -1,0 +1,62 @@
+name: Priority employer public Apply discovery
+
+on:
+  schedule:
+    - cron: "43 11 * * *"
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: "Employers to inspect (1-20)"
+        required: false
+        default: "3"
+      employer_names:
+        description: "Optional comma-separated exact company names"
+        required: false
+      dry_run:
+        description: "Capture evidence without database writes"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: priority-employer-discovery
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      BATCH_SIZE: ${{ inputs.batch_size || '15' }}
+      EMPLOYER_NAMES: ${{ inputs.employer_names || '' }}
+      DRY_RUN: ${{ inputs.dry_run || 'false' }}
+      MAX_JOB_CARDS: "5"
+      ARTIFACT_DIR: artifacts/priority-employers
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Inspect public career pages
+        id: crawl
+        run: npm run crawl:priority
+      - name: Publish run summary
+        if: always()
+        run: test -f artifacts/priority-employers/summary.md && cat artifacts/priority-employers/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+      - name: Upload public-page evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: priority-employer-evidence-${{ github.run_id }}
+          path: artifacts/priority-employers/
+          if-no-files-found: warn
+          retention-days: 14

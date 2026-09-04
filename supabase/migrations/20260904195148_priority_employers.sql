@@ -1,4 +1,4 @@
--- Phase A only: schema for the curated priority-employer catalog.
+-- Phase A/B schema for the curated priority-employer catalog.
 -- The reviewed 50-company seed remains separate until Steven approves it.
 
 alter table public.jobs
@@ -17,7 +17,7 @@ create table public.priority_employers (
   career_url text not null check (career_url ~ '^https://'),
   ats_type text not null check (ats_type in ('greenhouse', 'lever', 'ashby', 'workday', 'custom', 'browser_only')),
   crawl_strategy text not null check (crawl_strategy in ('ats_api', 'playwright_click')),
-  priority_tier smallint not null check (priority_tier between 1 and 3),
+  priority_tier smallint not null default 2 check (priority_tier between 1 and 3),
   verify_status text not null default 'pending' check (verify_status in ('pending', 'verified', 'failed')),
   last_success_at timestamptz,
   last_apply_url text,

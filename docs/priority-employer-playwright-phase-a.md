@@ -1,8 +1,8 @@
-# Priority employer browser discovery — Phase A design
+# Priority employer browser discovery — Phase B implementation
 
-Status: **review gate** (2026-09-04). This document and the 50-company seed are
-for Steven's approval. No employer rows are inserted and no browser crawler is
-scheduled until approval.
+Status: **Phase B approved** (2026-09-05). Steven approved the original 50 and
+requested balanced industry expansion. The production seed now contains 95
+employers (45 Canada, 50 US), all using the neutral default priority tier 2.
 
 ## Scope and safety boundary
 
@@ -17,19 +17,19 @@ manual-review result, never treated as a challenge to circumvent.
 The existing 43-source ATS JSON workflow remains unchanged. Browser discovery
 is a separate workflow, concurrency budget, schedule, log, and failure domain.
 
-## Phase A artifacts
+## Phase B artifacts
 
-- Schema: `supabase/migrations/20260904050000_priority_employers.sql`
-- Review-only seed: `supabase/seed/priority_employers_phase_a_50.sql`
+- Schema: `supabase/migrations/20260904195148_priority_employers.sql`
+- Approved seed migration: `supabase/migrations/20260904195153_seed_priority_employers_95.sql`
 - This design document
 
-Seed composition: 30 Canadian and 20 US employers. Forty-five career URLs
-returned HTTP 200/202 in the 2026-09-04 validation pass. Five sites (Manulife,
-McKinsey, TELUS, Canadian Tire, Gartner) rejected or timed out a plain HTTP
-client and remain `pending` for an ordinary Playwright browser check. None is
-marked failed merely for blocking curl.
+The original seed had 30 Canadian and 20 US employers. Phase B adds 15 Canadian
+and 30 US employers across healthcare/pharma, consumer goods, retail, media,
+automotive, transportation, energy, aerospace and industrial sectors. URLs that
+reject or time out a plain HTTP client remain `pending` for an ordinary
+Playwright browser check. None is marked failed merely for blocking curl.
 
-## Proposed GitHub Actions architecture (Phase B)
+## GitHub Actions architecture
 
 Workflow: `.github/workflows/priority-employer-discovery.yml`
 
@@ -43,8 +43,9 @@ Execution model:
 
 1. Query enabled/pending or stale `priority_employers`, ordered by tier and
    oldest success time.
-2. Select 10–20 employers per daily run. Use an Actions matrix with at most two
-   parallel browser workers and one browser context per employer.
+2. Select 10–20 employers per daily run. The initial rollout deliberately uses
+   one Chromium worker and one isolated browser context per employer; it can be
+   sharded to two workers after two stable scheduled runs.
 3. Run Playwright Chromium with a normal, identifiable OfferFlow user agent.
    Apply per-domain delay and bounded navigation/redirect timeouts.
 4. Discover public listing cards, open a bounded sample, follow an Apply link,
@@ -52,12 +53,11 @@ Execution model:
 5. Write one JSON result per employer. A failed employer never fails siblings.
    The workflow succeeds when at least one employer succeeds; all-failed is an
    operational failure.
-6. Upload JSON, screenshots, and a Playwright trace as short-retention Actions
-   artifacts. Only metadata/evidence paths are sent to Supabase; screenshots do
-   not enter the `jobs` table.
-7. Ingest successful results through a service-authenticated endpoint or
-   Supabase REST with the Actions service-role secret. Upsert jobs by stable
-   source/external ID and set `jobs.is_priority_employer=true`.
+6. Upload JSON and screenshots as 14-day Actions artifacts. Only metadata is
+   sent to Supabase; screenshots do not enter the `jobs` table.
+7. Write results through Supabase REST with the Actions service-role secret.
+   Existing normalized jobs whose legal company name matches the employer are
+   marked `jobs.is_priority_employer=true`.
 8. Update `verify_status`, `last_success_at`, `last_apply_url`, and notes. The
    run summary lists every employer, discovered listings, confirmed Apply URLs,
    redirects, failures, and reasons.
@@ -126,11 +126,11 @@ Recommended initial limits: batch size 10, browser workers 1–2, at most five
 job cards per employer, 1.5–3 seconds between navigations, 30-second navigation
 timeout, and 20-minute job timeout. Increase only after the first two clean runs.
 
-## Review checklist before Phase B
+## Phase C readiness checklist
 
-1. Steven approves/removes/adds companies and confirms tier assignments.
-2. Pending career URLs are verified in an ordinary browser.
-3. Legal/terms review confirms the per-domain access policy.
-4. Screenshot retention and Supabase ingestion endpoint are approved.
-5. Only then apply migration 0005 and the reviewed seed, and implement the
-   Playwright runner/workflow.
+1. Review the first scheduled runs and add company-specific selectors only for
+   public pages that the generic semantic selectors cannot resolve.
+2. Recheck failed domains before changing status; never bypass their controls.
+3. Expand from 95 toward 200 with the same industry balance and URL evidence.
+4. Consider a dedicated browser-job ingestion model if Phase C must create new
+   normalized jobs rather than flag jobs already collected through ATS sources.

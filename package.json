@@ -1,0 +1,11 @@
+{
+  "name": "offerflow-priority-employer-crawler",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "crawl:priority": "node scripts/priority-employer-crawler.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.62.1"
+  }
+}
