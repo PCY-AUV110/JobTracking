@@ -3591,3 +3591,65 @@ body.compact .cards-list { gap: 8px; }
   border-color: rgba(255, 69, 58, 0.35);
   background: rgba(255, 69, 58, 0.08);
 }
+
+/* ============================================================
+   移动端适配修复（竖屏 ≤480px：iPhone 竖屏等）
+   实测过 390×844 视口下的真实渲染尺寸再定的修复范围：
+   - .btn 42px / .icon-btn 38px / .close-btn ~28×34 / .checkbox-pill 35px
+     高度，均低于 44px 触控目标下限。
+   - #jobDetailModal 的 .modal-actions 三个按钮在窄屏挤成一行，文字被迫
+     换行成"关\n闭"这种断字，可读性和可点性都差。
+   - 内容较长的弹窗（如岗位详情，JD 摘要+多行字段）光靠内容区滚动的话，
+     底部按钮平时是滚到最后才看得到——改成 sticky 贴底，滚动过程中始终
+     可见可点，不用滚到底才能操作。
+   只加在 ≤480px 媒体查询里，不改基础规则，桌面端布局不受影响。
+   ============================================================ */
+@media (max-width: 480px) {
+  .btn {
+    min-height: 44px;
+    padding: 13px 16px;
+  }
+
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .close-btn {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .checkbox-pill {
+    min-height: 44px;
+    padding: 9px 14px;
+  }
+
+  /* 弹窗底部操作区在窄屏改成竖排整行按钮，避免多个按钮挤在一行导致文字断行；
+     贴底 sticky 在 .modal 的滚动容器内，不用滚到最后才能点到 */
+  .modal-actions {
+    flex-direction: column;
+    align-items: stretch;
+    position: sticky;
+    bottom: -24px;
+    margin: 20px -24px -24px;
+    padding: 14px 24px calc(14px + env(safe-area-inset-bottom, 0px));
+    background: rgba(255, 255, 255, .98);
+    border-top: 1px solid var(--line);
+  }
+
+  .modal-actions .btn {
+    width: 100%;
+  }
+
+  .job-card-actions {
+    flex-wrap: wrap;
+  }
+
+  .job-card-actions .btn {
+    flex: 1 1 auto;
+  }
+}
