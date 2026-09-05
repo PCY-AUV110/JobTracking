@@ -1,7 +1,13 @@
 # 前端开发状态（Claude Code 维护）
 
-分支：`fix/mobile-panel-layout`（已 push，从最新 main 切出）
+分支：`fix/mobile-panel-layout`（已 push，第二轮修复，commit `869794c`）
 工区：`/Users/p.cy/Desktop/杂货铺/jobtrack-release`（独立 worktree，与主工区 `jobtrack_github_demo`、Codex 的 `jobtrack-backend` 平级），本地预览用 `python3 -m http.server 8000`
+
+## 岗位卡片高度异常 + 简历删除 bug（已 push，commit `869794c`）
+
+**卡片高度**：根因是 CSS Grid 默认 `align-items:stretch`——同一行里最高的卡片会把其他卡片也撑到同样高度。390px 单列布局本地复现不出来（一行只有一张卡，没有"别的卡片"可撑），但在 700px 宽度（2 列）用一张短内容卡片+一张长 JD 卡片实测复现出了一模一样的"内容占一块、下面全是空白"。触发条件是算出来的（≥574px 才能塞下 2 张 280px 卡片），不是设备类型，所以这处的移动端修复用了比其他几处（480px）更宽的 `640px` 断点，强制单列 + `align-items:start`，桌面端（>640px，700px/1440px 都测过）行为完全不变。顺带把"进行中/已终止/全部记录" tab 也补到 44px 触控高度。
+
+**简历删除 bug**：`deleteResumeVersion()` 直连 Supabase（没走 Edge Function），只检查了 `error`，但 `.delete()` 不带 `.select()` 时零行匹配（RLS 拦掉/id 不对/已经删过）也返回 `error:null`——代码没法区分"真删了"和"请求成功但啥也没删掉"。这正好解释 Steven 反馈的"删除后刷新记录还在"。不是乐观更新回滚失败（这段代码本来就是等删除完再整个重新拉取列表，是安全的写法），是删除请求本身的成功判断有漏洞。加了 `.select("id")` 用返回行数判断删除是否真的发生，没删成功会明确报错而不是假装成功。
 
 ## 移动端适配修复（已 push，commit `1b3f20b`）
 
