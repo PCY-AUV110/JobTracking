@@ -506,8 +506,16 @@ async function deleteResumeVersion(id) {
 
   if (RESUME_BACKEND_READY) {
     try {
-      const { error } = await supabase.from("resumes").delete().eq("id", id);
+      // ⚠️ .delete() 不带 .select() 时，Supabase 在零行匹配（RLS 拦掉、id 不对、
+      // 已经被删过）时也会返回 error:null——之前的写法只看 error，等于永远不会
+      // 发现"删除请求成功发出但其实什么都没删掉"这种情况。这正是 Steven 反馈的
+      // "删除后刷新记录还在"：UI 显示删除成功，实际上服务端那一行根本没被删。
+      // 加 .select("id") 拿到真实受影响的行，用行数判断删除是否真的发生。
+      const { data, error } = await supabase.from("resumes").delete().eq("id", id).select("id");
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("删除请求已发送，但没有记录被删除（可能是权限问题或记录已不存在），请刷新页面确认");
+      }
       if (getDefaultResumeId() === id) localStorage.removeItem(RESUME_DEFAULT_ID_KEY);
       renderResumeVersionList();
       showToast("已删除该简历版本");
