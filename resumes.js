@@ -400,7 +400,14 @@ function setDefaultResumeId(id) {
 
 // resumes 表没有 is_default 列，用真实 id 在本地记一个"当前默认"（见文件头已知缺口 #1）
 async function listResumesBackend() {
-  return dbGetAll("resumes", row => ({
+  // Super admins have read-only visibility across users for the admin console.
+  // The personal resume center must still be explicitly scoped to its owner.
+  const { data, error } = await supabase
+    .from("resumes")
+    .select("*")
+    .eq("user_id", currentUser.id);
+  if (error) throw error;
+  return (data || []).map(row => ({
     id: row.id,
     filename: row.filename,
     rawText: row.raw_text,
@@ -506,10 +513,19 @@ async function deleteResumeVersion(id) {
 
   if (RESUME_BACKEND_READY) {
     try {
-      const { error } = await supabase.from("resumes").delete().eq("id", id);
+      // Include ownership in the mutation and request the deleted id. Under RLS,
+      // an unauthorized DELETE affects zero rows without necessarily returning an
+      // error, so checking the returned row prevents a false-success toast.
+      const { data, error } = await supabase
+        .from("resumes")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", currentUser.id)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error("未找到可删除的简历，或当前账号无权删除");
       if (getDefaultResumeId() === id) localStorage.removeItem(RESUME_DEFAULT_ID_KEY);
-      renderResumeVersionList();
+      await renderResumeVersionList();
       showToast("已删除该简历版本");
     } catch (err) {
       showToast("删除失败：" + (err?.message || "未知错误"));

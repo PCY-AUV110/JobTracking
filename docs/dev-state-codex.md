@@ -28,6 +28,8 @@ Updated: 2026-09-05
 - The five requested pending employers were checked with real Chromium: Gartner verified; Manulife and McKinsey stopped by robots policy; TELUS stopped by robots policy in Actions; Canadian Tire remains pending because no public apply link was exposed. No bypass was attempted.
 - `job-feed` and `job-history` are deployed with API v1.4 `is_priority_employer`; an authenticated ephemeral-user smoke test confirmed both endpoints return the boolean field. The user and cascade-owned smoke data were deleted afterward.
 - Claude's priority-employer badge was reviewed and merged at `37ec1bd`; absent/false fields hide cleanly.
+- Resume deletion incident fixed: the personal resume list now explicitly scopes `resumes.user_id` even for super admins, and DELETE verifies an owner-scoped returned row instead of treating an RLS-blocked zero-row mutation as success. Production upload/delete/re-query smoke passed with an ephemeral user.
+- Removed the two orphan smoke users and their `smoke.pdf` / `priority-smoke.pdf` rows, linked matches, and AI usage logs. Steven's real `CHIYOU (STEVEN) PENG.pdf` was preserved; no PDF objects existed in Storage because the current client sends extracted text only.
 - Six-table migration validated against the linked Supabase project prerequisites (`update_profiles_updated_at` and `is_super_admin`) and prepared for deployment.
 - Confirmed backend ownership boundaries: `supabase/`, `.github/workflows/`, backend client wrapper, and backend docs.
 
@@ -53,3 +55,4 @@ Updated: 2026-09-05
 - Prefer targeted reads and focused checks; avoid repeated full-repository scans.
 - Run heavy service/end-to-end verification once per major milestone.
 - Record material progress here before generating the next large implementation block.
+- Never run smoke tests under a real user. Every test must use an ephemeral dedicated Auth user with an EXIT cleanup trap, then verify zero remaining Auth/database/Storage rows before reporting success.
