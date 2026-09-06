@@ -1,6 +1,6 @@
 # 前端开发状态（Claude Code 维护）
 
-分支：`fix/mobile-panel-layout`（已 push，第二轮修复，commit `869794c`）
+分支：`feature/prefs-french-function`
 工区：`/Users/p.cy/Desktop/杂货铺/jobtrack-release`（独立 worktree，与主工区 `jobtrack_github_demo`、Codex 的 `jobtrack-backend` 平级），本地预览用 `python3 -m http.server 8000`
 
 ## 岗位卡片高度异常 + 简历删除 bug（已 push，commit `869794c`）

@@ -3656,6 +3656,24 @@ body.compact .cards-list { gap: 8px; }
   .segment {
     min-height: 44px;
   }
+
+  /* Day7：岗位偏好面板保存按钮贴底 sticky。#prefSaveBar 特意放在 .panel（自身
+     overflow:hidden，会截断 sticky 的滚动参照）外面、#preferencesView 内部，
+     这样 sticky 才是相对窗口滚动生效，不是相对 .panel 那个不滚动的盒子。
+     负 margin 抵消 ≤820px 断点下 .main 的左右 18px / 底部 40px padding，让
+     背景条贴到屏幕边缘，跟滚到底时不留空白（跟 .modal-actions 的做法一致）。 */
+  #prefSaveBar {
+    position: sticky;
+    bottom: 0;
+    margin: 20px -18px -40px;
+    padding: 14px 18px calc(14px + env(safe-area-inset-bottom, 0px));
+    background: rgba(255, 255, 255, .98);
+    border-top: 1px solid var(--line);
+  }
+
+  #prefSaveBar .btn {
+    width: 100%;
+  }
 }
 
 /* ============================================================

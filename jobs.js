@@ -22,6 +22,11 @@ const JOBS_FEED_BACKEND_READY = true; // Day4 收口：Codex 确认 job-feed/job
 // Day5 migration 0004 已在生产库上线，岗位偏好由 Supabase 持久化并跨设备同步。
 const JOB_PREFS_BACKEND_READY = true;
 
+// Day7：新增「屏蔽法语岗位」「专业方向」偏好，exclude_french/preferred_functions
+// 两列还没有对应 migration 上线（supabase/migrations/ 里没有），先只落 localStorage；
+// Codex 确认迁移部署后把这个开关翻 true 即可随 saveJobPreferencesBackend 一起同步云端。
+const JOB_PREFS_V2_BACKEND_READY = false;
+
 // 契约里 llm_grade 是 A|B|C|D|E|F 六档
 const MATCH_GRADE_STYLE = {
   A: { bg: "rgba(48, 176, 112, 0.14)", color: "#1f7a4d" },
@@ -81,7 +86,9 @@ function defaultJobPreferences() {
     keywords: [], locations: [], job_types: [], min_salary: null, excluded_keywords: [], filter_pr_citizen: true,
     internship_duration: [], start_season: [],
     // Day5：字段名按 Steven/Codex 定的写，job_preferences 表加 work_modes/countries 两列
-    work_modes: [], countries: []
+    work_modes: [], countries: [],
+    // Day7：屏蔽法语岗位开关 + 专业方向多选，字段名待 Codex v1.5 契约最终确认
+    exclude_french: false, preferred_functions: []
   };
 }
 
@@ -118,6 +125,10 @@ async function saveJobPreferencesBackend(prefs) {
   if (JOB_PREFS_BACKEND_READY) {
     row.work_modes = prefs.work_modes;
     row.countries = prefs.countries;
+  }
+  if (JOB_PREFS_V2_BACKEND_READY) {
+    row.exclude_french = prefs.exclude_french;
+    row.preferred_functions = prefs.preferred_functions;
   }
   const { error } = await supabase.from("job_preferences").upsert(row);
   if (error) throw error;
@@ -165,8 +176,12 @@ function renderJobPreferencesFormUI() {
   document.querySelectorAll("#prefCountryGroup input[type=checkbox]").forEach(box => {
     box.checked = jobPreferences.countries.includes(box.value);
   });
+  document.querySelectorAll("#prefFunctionGroup input[type=checkbox]").forEach(box => {
+    box.checked = jobPreferences.preferred_functions.includes(box.value);
+  });
   document.getElementById("prefMinSalary").value = jobPreferences.min_salary ?? "";
   document.getElementById("prefFilterIdentityToggle").checked = jobPreferences.filter_pr_citizen !== false;
+  document.getElementById("prefExcludeFrenchToggle").checked = jobPreferences.exclude_french === true;
 }
 
 // 通用 chip 列表渲染（关键词/地点/排除词共用同一个视觉组件）
@@ -208,9 +223,11 @@ async function handlePrefSaveClick() {
   jobPreferences.start_season = Array.from(document.querySelectorAll("#prefStartSeasonGroup input:checked")).map(b => b.value);
   jobPreferences.work_modes = Array.from(document.querySelectorAll("#prefWorkModeGroup input:checked")).map(b => b.value);
   jobPreferences.countries = Array.from(document.querySelectorAll("#prefCountryGroup input:checked")).map(b => b.value);
+  jobPreferences.preferred_functions = Array.from(document.querySelectorAll("#prefFunctionGroup input:checked")).map(b => b.value);
   const minSalaryVal = document.getElementById("prefMinSalary").value;
   jobPreferences.min_salary = minSalaryVal ? Number(minSalaryVal) : null;
   jobPreferences.filter_pr_citizen = document.getElementById("prefFilterIdentityToggle").checked;
+  jobPreferences.exclude_french = document.getElementById("prefExcludeFrenchToggle").checked;
 
   persistJobPreferences(); // 本地始终先存一份，跨设备同步之外的兜底
 
@@ -334,7 +351,10 @@ function mapFeedRow(row) {
     country_code: row.country_code && row.country_code !== "unknown" ? row.country_code : null,
     // Day6：job-feed v1.4 独立部署中，字段可能还不存在，一律用 === true 严格判断，
     // 缺失/false/undefined 都归为「不是重点大厂」，不显示徽章，不报错
-    is_priority_employer: row.is_priority_employer === true
+    is_priority_employer: row.is_priority_employer === true,
+    // Day7：job_function 英文枚举，非空且在标签映射表里才展示；requires_french
+    // 契约里有这个字段但前端不展示，故意不 map 进来
+    job_function: row.job_function || null
   };
 }
 
@@ -351,10 +371,27 @@ const WORK_MODE_ICONS = { in_person: "🏢", remote: "🏠", hybrid: "🔀" };
 const COUNTRY_LABELS = { US: "America", CA: "Canada" };
 const COUNTRY_ICONS = { US: "🇺🇸", CA: "🇨🇦" };
 
+// Day7：职能方向中文标签，对齐偏好面板「专业方向」12 个选项的英文枚举值
+const JOB_FUNCTION_LABELS = {
+  business_analysis: "商业分析",
+  operations: "运营",
+  public_affairs: "公共事务",
+  market_research: "市场研究",
+  marketing: "市场营销",
+  sales: "销售",
+  finance: "金融财务",
+  data_analysis: "数据分析",
+  consulting: "咨询",
+  hr: "人力资源",
+  supply_chain: "供应链",
+  product: "产品"
+};
+
 function workModeCountryTag(job) {
   const parts = [];
   if (job.work_mode) parts.push(`${WORK_MODE_ICONS[job.work_mode] || ""} ${WORK_MODE_LABELS[job.work_mode] || job.work_mode}`);
   if (job.country_code) parts.push(`${COUNTRY_ICONS[job.country_code] || ""} ${COUNTRY_LABELS[job.country_code] || job.country_code}`);
+  if (job.job_function && JOB_FUNCTION_LABELS[job.job_function]) parts.push(JOB_FUNCTION_LABELS[job.job_function]);
   return parts.length ? `<span class="small-muted">${escapeHtml(parts.join(" · "))}</span>` : "";
 }
 
@@ -558,6 +595,7 @@ function openJobDetail(jobId) {
     <p><strong>雇佣类型：</strong>${escapeHtml(job.employment_type)}</p>
     ${job.work_mode ? `<p><strong>工作模式：</strong>${escapeHtml(`${WORK_MODE_ICONS[job.work_mode] || ""} ${WORK_MODE_LABELS[job.work_mode] || job.work_mode}`)}</p>` : ""}
     ${job.country_code ? `<p><strong>国家：</strong>${escapeHtml(`${COUNTRY_ICONS[job.country_code] || ""} ${COUNTRY_LABELS[job.country_code] || job.country_code}`)}</p>` : ""}
+    ${job.job_function && JOB_FUNCTION_LABELS[job.job_function] ? `<p><strong>职能方向：</strong>${escapeHtml(JOB_FUNCTION_LABELS[job.job_function])}</p>` : ""}
     ${job.ats_type ? `<p><strong>来源：</strong>${escapeHtml(ATS_LABELS[job.ats_type] || job.ats_type)}</p>` : ""}
     <p><strong>核心要求：</strong>${escapeHtml(job.jd_summary)}</p>
     <p class="small-muted" style="margin-top:14px">JD 原文（jd_raw）与匹配差距分析（job_matches.gaps）等真实 score-jobs 数据接入后展示，目前为本地演示数据占位。</p>
