@@ -567,6 +567,36 @@
           </div>
         </div>
 
+        <div class="setting-row">
+          <div>
+            <strong>屏蔽法语岗位</strong>
+            <p>隐藏明确要求法语或英法双语的岗位。</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="prefExcludeFrenchToggle" />
+            <span></span>
+          </label>
+        </div>
+
+        <div class="resume-field">
+          <span class="resume-field-label">专业方向</span>
+          <div class="checkbox-group" id="prefFunctionGroup">
+            <label class="checkbox-pill"><input type="checkbox" value="business_analysis" /> <span>商业分析</span></label>
+            <label class="checkbox-pill"><input type="checkbox" value="operations" /> <span>运营</span></label>
+            <label class="checkbox-pill"><input type="checkbox" value="public_affairs" /> <span>公共事务</span></label>
+            <label class="checkbox-pill"><input type="checkbox" value="market_research" /> <span>市场研究</span></label>
+            <label class="checkbox-pill"><input type="checkbox" value="marketing" /> <span>市场营销</span></label>
+            <label class="checkbox-pill"><input type="checkbox" value="sales" /> <span>销售</span></label>
+            <label class="checkbox-pill"><input type="checkbox" value="finance" /> <span>金融财务</span></label>
+            <label class="checkbox-pill"><input type="checkbox" value="data_analysis" /> <span>数据分析</span></label>
+            <label class="checkbox-pill"><input type="checkbox" value="consulting" /> <span>咨询</span></label>
+            <label class="checkbox-pill"><input type="checkbox" value="hr" /> <span>人力资源</span></label>
+            <label class="checkbox-pill"><input type="checkbox" value="supply_chain" /> <span>供应链</span></label>
+            <label class="checkbox-pill"><input type="checkbox" value="product" /> <span>产品</span></label>
+          </div>
+          <p class="small-muted" style="margin-top:8px">优先推荐所选方向的岗位，可多选，不选为不限。</p>
+        </div>
+
         <div class="form-grid">
           <label class="field">
             <span>薪资底线（年化，CAD）</span>
@@ -591,10 +621,11 @@
           </label>
         </div>
 
-        <div class="resume-step-actions">
-          <button type="button" class="btn primary" id="prefSaveBtn">保存偏好</button>
-        </div>
       </section>
+
+      <div class="resume-step-actions" id="prefSaveBar">
+        <button type="button" class="btn primary" id="prefSaveBtn">保存偏好</button>
+      </div>
     </section>
 
     <!-- ============================================================

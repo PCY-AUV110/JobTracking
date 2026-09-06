@@ -1,7 +1,19 @@
 # 前端开发状态（Claude Code 维护）
 
-分支：`fix/mobile-panel-layout`（已 push，第二轮修复，commit `869794c`）
+分支：`feature/prefs-french-function`
 工区：`/Users/p.cy/Desktop/杂货铺/jobtrack-release`（独立 worktree，与主工区 `jobtrack_github_demo`、Codex 的 `jobtrack-backend` 平级），本地预览用 `python3 -m http.server 8000`
+
+## 屏蔽法语岗位 + 专业方向偏好 / 岗位职能标签（已 push，等 Codex review 合并，commit `bf736f1`）
+
+Steven 提的两个偏好/推荐新需求，开发前先读了一遍偏好面板的渲染/回填/保存链路（`renderJobPreferencesForm`→`renderJobPreferencesFormUI`→`handlePrefSaveClick`→`saveJobPreferencesBackend`）和卡片标签渲染（`mapFeedRow`→`workModeCountryTag`/`jobCardHtml`），确认新字段该嵌在哪几个函数里，没有另起一套逻辑。
+
+1. **屏蔽法语岗位**（`exclude_french`，boolean）：国家/地区 checkbox-group 正下方加了一个 `.setting-row` + `.switch` 开关，文案/副文案按需求原文写。
+2. **专业方向**（`preferred_functions`，string[]）：新增一个 `.checkbox-group`（`#prefFunctionGroup`），12 个选项用需求给的英文枚举值当 `value`，中文当展示文案，空选=不限。复用现有 `.checkbox-pill` 组件，移动端 ≥44px 触控高度和自动换行都是继承来的，没有新写样式。
+3. **岗位卡片 `job_function` 标签**：不新起一个标签块，直接并入 `workModeCountryTag()` 已有的工作模式/国家标签（同一个 `small-muted` span，用 `·` 分隔），非空且能在 `JOB_FUNCTION_LABELS` 映射表里查到中文才显示，查不到就不显示不报错——跟 Day6 重点大厂徽章、`work_mode`/`country_code` 的"未知字段优雅隐藏"是一路的写法。`requires_french` 按需求没有引入 `mapFeedRow`，前端完全不接触这个字段。
+4. **后端就绪状态**：`supabase/migrations/` 里还没有 `exclude_french`/`preferred_functions` 对应的列（检查过目录，最新一条还是 Day6 的重点大厂迁移），所以新增了 `JOB_PREFS_V2_BACKEND_READY`（现为 `false`），两个新字段目前只落 localStorage；`JOB_PREFS_BACKEND_READY` 本身没动，`work_modes`/`countries`/其余既有字段的云端同步行为完全不受影响。等 Codex 确认迁移上线、v1.5 契约字段名定稿后，把开关翻 `true` 即可让 `saveJobPreferencesBackend` 一并同步新字段。
+5. **保存按钮 sticky 贴底**（仅移动端）：这个之前没做过，踩了一个坑——按钮原来在 `.panel` 容器里，而 `.panel` 有 `overflow:hidden`，会把它变成 sticky 的滚动参照系（一个自身不滚动的盒子），导致 sticky 完全不生效。改法是把保存按钮的 `<div>` 挪到 `.panel` 外面、`#preferencesView` 里面，这样 sticky 就是相对窗口滚动，同 `@media (max-width:480px)` 里其它 sticky 处理一致。桌面端因为这条规则只在 480px 媒体查询里，按钮还是原来的右对齐 static 定位，截图对比像素级没变。
+
+验证：Playwright chromium，390×844 + 1440×900 两个视口都跑了。移动端调试时发现一个跟这次需求无关但会拖垮所有 `page.click()` 的坑——`app.js` 里 service worker 的 `controllerchange` 监听器会在首次激活时 `location.reload()`，测试脚本里那次 reload 恰好卡在点击动作和元素可见性判定之间，Playwright 一直报"element is not visible"其实是页面在测试过程中重新加载了。解决办法是 `browser.newContext({ serviceWorkers: 'block' })`，不是 app 本身的 bug，记录下来供以后写测试脚本参考。验证内容：12 个专业方向 pill 触控高度全部 44px；切换视图模拟"离开再回来"后 `exclude_french`/`preferred_functions` 正确回填，`localStorage` 里其余既有字段（`keywords`/`work_modes`/`filter_pr_citizen` 等）值不变；保存栏滚动到底时 `bottom` 精确贴合视口下边缘；直接调用 `mapFeedRow`/`jobCardHtml` 注入带 `job_function`/`requires_french` 的 mock 岗位，卡片标签正确显示中文职能、且整个卡片 HTML 里搜不到"法语"/"french"字样；桌面端截图确认偏好面板、专业方向分区、保存按钮位置与卡片标签均无回归。
 
 ## 岗位卡片高度异常 + 简历删除 bug（已 push，commit `869794c`）
 
