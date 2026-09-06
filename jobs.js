@@ -22,10 +22,8 @@ const JOBS_FEED_BACKEND_READY = true; // Day4 收口：Codex 确认 job-feed/job
 // Day5 migration 0004 已在生产库上线，岗位偏好由 Supabase 持久化并跨设备同步。
 const JOB_PREFS_BACKEND_READY = true;
 
-// Day7：新增「屏蔽法语岗位」「专业方向」偏好，exclude_french/preferred_functions
-// 两列还没有对应 migration 上线（supabase/migrations/ 里没有），先只落 localStorage；
-// Codex 确认迁移部署后把这个开关翻 true 即可随 saveJobPreferencesBackend 一起同步云端。
-const JOB_PREFS_V2_BACKEND_READY = false;
+// Day7 migration 0006 / API v1.5 已在生产库上线；两个字段随偏好一起跨设备同步。
+const JOB_PREFS_V2_BACKEND_READY = true;
 
 // 契约里 llm_grade 是 A|B|C|D|E|F 六档
 const MATCH_GRADE_STYLE = {
@@ -352,8 +350,9 @@ function mapFeedRow(row) {
     // Day6：job-feed v1.4 独立部署中，字段可能还不存在，一律用 === true 严格判断，
     // 缺失/false/undefined 都归为「不是重点大厂」，不显示徽章，不报错
     is_priority_employer: row.is_priority_employer === true,
-    // Day7：job_function 英文枚举，非空且在标签映射表里才展示；requires_french
-    // 契约里有这个字段但前端不展示，故意不 map 进来
+    // Day7：严格保留 v1.5 两个岗位字段。requires_french 暂不直接展示，
+    // job_function 非空且在标签映射表里时显示中文标签。
+    requires_french: row.requires_french === true,
     job_function: row.job_function || null
   };
 }
