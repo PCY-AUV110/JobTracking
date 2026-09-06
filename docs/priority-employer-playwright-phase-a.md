@@ -134,3 +134,6 @@ timeout, and 20-minute job timeout. Increase only after the first two clean runs
 3. Expand from 95 toward 200 with the same industry balance and URL evidence.
 4. Consider a dedicated browser-job ingestion model if Phase C must create new
    normalized jobs rather than flag jobs already collected through ATS sources.
+   Any such normalized browser job must use the same v1.5 signal helpers as the
+   ATS path and persist `requires_french` plus `job_function`; it must not create
+   a second, divergent language/classification ruleset.

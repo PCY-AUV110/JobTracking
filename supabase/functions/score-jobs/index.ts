@@ -37,6 +37,7 @@ function timingAdjustment(jd: string, preferences: any) {
 function targetingAdjustment(job: any, preferences: any) {
   const preferredModes: string[] = preferences?.work_modes ?? [];
   const preferredCountries: string[] = preferences?.countries ?? [];
+  const preferredFunctions: string[] = preferences?.preferred_functions ?? [];
   let points = 0;
   const signals: string[] = [];
   if (preferredModes.length && job.work_mode !== "unknown" && preferredModes.includes(job.work_mode)) {
@@ -47,7 +48,11 @@ function targetingAdjustment(job: any, preferences: any) {
     points += 10;
     signals.push("country_match");
   }
-  return { points, signals, work_mode: job.work_mode ?? "unknown", country_code: job.country_code ?? "unknown" };
+  if (preferredFunctions.length && job.job_function && preferredFunctions.includes(job.job_function)) {
+    points += 12;
+    signals.push("job_function_match");
+  }
+  return { points, signals, work_mode: job.work_mode ?? "unknown", country_code: job.country_code ?? "unknown", job_function: job.job_function ?? null };
 }
 
 Deno.serve(async (req: Request) => {
@@ -88,7 +93,7 @@ Deno.serve(async (req: Request) => {
       let grade = score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : score >= 60 ? "D" : score >= 50 ? "E" : "F";
       let gaps: any = {missing_keywords:[...jobTokens].filter((x)=>!resumeTokens.has(x)).slice(0,15),timing,targeting};
       if (OPENAI_API_KEY) {
-        const ai = await fetch("https://api.openai.com/v1/chat/completions", {method:"POST",headers:{authorization:`Bearer ${OPENAI_API_KEY}`,"content-type":"application/json"},body:JSON.stringify({model:"gpt-4o-mini",response_format:{type:"json_object"},temperature:0,max_tokens:350,messages:[{role:"system",content:"Score resume-job fit. Return JSON {score:0-100,grade:A-F,gaps:{missing_skills:[],notes:[]}}. Timing, work-mode, and country preferences are soft signals only; never reject for a mismatch."},{role:"user",content:`RESUME\n${resume.raw_text.slice(0,10000)}\nPREFERENCES\n${JSON.stringify({internship_duration:preferences?.internship_duration??[],start_season:preferences?.start_season??[],work_modes:preferences?.work_modes??[],countries:preferences?.countries??[]})}\nJOB\n${job.jd_raw.slice(0,10000)}`}]})});
+        const ai = await fetch("https://api.openai.com/v1/chat/completions", {method:"POST",headers:{authorization:`Bearer ${OPENAI_API_KEY}`,"content-type":"application/json"},body:JSON.stringify({model:"gpt-4o-mini",response_format:{type:"json_object"},temperature:0,max_tokens:350,messages:[{role:"system",content:"Score resume-job fit. Return JSON {score:0-100,grade:A-F,gaps:{missing_skills:[],notes:[]}}. Timing, work-mode, country, and preferred job-function preferences are soft signals only; never reject for a mismatch."},{role:"user",content:`RESUME\n${resume.raw_text.slice(0,10000)}\nPREFERENCES\n${JSON.stringify({internship_duration:preferences?.internship_duration??[],start_season:preferences?.start_season??[],work_modes:preferences?.work_modes??[],countries:preferences?.countries??[],preferred_functions:preferences?.preferred_functions??[]})}\nJOB\n${job.jd_raw.slice(0,10000)}`}]})});
         if (ai.ok) {
           const payload = await ai.json(); const value = JSON.parse(payload.choices[0].message.content);
           const aiScore = Number(value.score);
