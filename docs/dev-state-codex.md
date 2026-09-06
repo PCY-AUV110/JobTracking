@@ -1,6 +1,6 @@
 # Codex backend development state
 
-Updated: 2026-09-05
+Updated: 2026-09-06
 
 ## Done
 
@@ -30,12 +30,16 @@ Updated: 2026-09-05
 - Claude's priority-employer badge was reviewed and merged at `37ec1bd`; absent/false fields hide cleanly.
 - Resume deletion incident fixed: the personal resume list now explicitly scopes `resumes.user_id` even for super admins, and DELETE verifies an owner-scoped returned row instead of treating an RLS-blocked zero-row mutation as success. Production upload/delete/re-query smoke passed with an ephemeral user.
 - Removed the two orphan smoke users and their `smoke.pdf` / `priority-smoke.pdf` rows, linked matches, and AI usage logs. Steven's real `CHIYOU (STEVEN) PENG.pdf` was preserved; no PDF objects existed in Storage because the current client sends extracted text only.
+- Preference signals v1.5 / migration 0006 is applied in production: `jobs.requires_french`, `jobs.job_function`, `job_preferences.exclude_french`, and `job_preferences.preferred_functions`.
+- The 6,697-job backfill found 128 explicit French-requirement signals and classified 2,720 titles into the 12 canonical functions (3,977 remain safely unclassified rather than guessed).
+- ATS normalization now derives French requirements from title+JD with country-aware bilingual handling and classifies job function from ordered title rules. `score-jobs` adds +12 for a preferred-function match; `job-feed` filters French-required jobs only when requested by the stored preference, while `job-history` remains complete.
+- Authenticated v1.5 smoke passed: function match produced +12, feed excluded the French job, history retained it, and both returned the new fields. Auth/database/AI/Storage cleanup checks all returned zero afterward.
 - Six-table migration validated against the linked Supabase project prerequisites (`update_profiles_updated_at` and `is_super_admin`) and prepared for deployment.
 - Confirmed backend ownership boundaries: `supabase/`, `.github/workflows/`, backend client wrapper, and backend docs.
 
 ## In progress
 
-- Phase B is complete; monitoring daily browser discovery and waiting for Phase C approval before expanding from 95 to 200 employers.
+- Monitoring the first 43-source ATS crawl after v1.5 normalization; waiting for Claude's v1.5 frontend branch for final review/merge.
 
 ## Next
 

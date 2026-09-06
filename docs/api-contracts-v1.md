@@ -1,7 +1,7 @@
-# OfferFlow Backend API Contracts v1.4
+# OfferFlow Backend API Contracts v1.5
 
 Status: **frozen for frontend integration**  
-Date: 2026-09-02  
+Date: 2026-09-05
 Transport: Supabase Edge Functions over HTTPS, JSON only  
 Frontend SDK: `@supabase/supabase-js` v2
 
@@ -517,3 +517,72 @@ that resume has no matches (or when `refresh=true`), so the first real feed load
 produces matches without a separate frontend scoring call.
 
 Implementation note: `listMatchedJobs`/`getJobCard` from v1 are superseded by `getJobFeed`/`getJobHistory` for the feed/history views — the underlying job-card row shape is compatible (same fields), so existing card-rendering code should not need to change, only the fetch call.
+
+## Addendum v1.5 (2026-09-05) — French exclusion and preferred job functions
+
+Status: **frozen for frontend integration**.
+
+Canonical job-function enum:
+
+```ts
+type JobFunction =
+  | "business_analysis" | "operations" | "public_affairs" | "market_research"
+  | "marketing" | "sales" | "finance" | "data_analysis" | "consulting"
+  | "hr" | "supply_chain" | "product";
+```
+
+`job_preferences` GET/PUT rows add:
+
+```json
+{
+  "exclude_french": false,
+  "preferred_functions": ["business_analysis", "operations"]
+}
+```
+
+- `exclude_french` defaults to `false`. When true, `job-feed` excludes jobs
+  whose `requires_french` is true. It does not remove or hide matches from
+  `job-history`, including viewed/applied records.
+- `preferred_functions` defaults to `[]` (no preference). A classified match
+  adds 12 points in `score-jobs`; a mismatch never subtracts points and never
+  hard-filters a job.
+- Frontend labels map directly to the canonical enum values above. Unknown or
+  unclassified jobs have `job_function: null` and remain eligible.
+
+Every `job-feed` and `job-history` row adds:
+
+```json
+{
+  "requires_french": false,
+  "job_function": "business_analysis"
+}
+```
+
+`requires_french` is always boolean. `job_function` is a canonical enum or
+`null`. Detection uses title plus stored `jd_raw` only: explicit
+`french/français/francais` signals count in both countries; `bilingual/bilingue`
+counts only when `country_code=CA`. Location names such as Montreal or Quebec
+are never language signals.
+
+The ATS normalizer calculates both fields on every insert/change. Greenhouse is
+requested with `content=true`; Lever/Ashby/compatible Workday list payloads use
+their available description fields. If an upstream list response omits its
+description, classification safely falls back to title rather than performing
+an authenticated or access-controlled scrape.
+
+Feed ordering is `llm_score desc`, then match creation time. History remains
+ordered by match creation time. The preferred-function bonus can therefore
+move matching jobs earlier without excluding unclassified jobs.
+
+Updated preference client shapes:
+
+```ts
+type JobPreferencesInput = {
+  // existing v1-v1.4 fields omitted here
+  exclude_french?: boolean;
+  preferred_functions?: JobFunction[];
+};
+
+getJobPreferences(): Promise<JobPreferences | null>;
+upsertJobPreferences(input: JobPreferencesInput): Promise<JobPreferences>;
+```
